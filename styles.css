@@ -370,7 +370,7 @@ td {
 }
 
 .modal {
-  width: min(980px, calc(100% - 40px));
+  width: min(900px, calc(100% - 64px));
   padding: 0;
   border: 0;
   border-radius: 24px;
@@ -394,7 +394,7 @@ td {
 }
 
 .modal-panel.narrow {
-  width: min(620px, 100%);
+  width: min(580px, 100%);
 }
 
 .profile-panel {
@@ -403,9 +403,9 @@ td {
 
 .modal-header {
   display: flex;
-  gap: 24px;
+  gap: 28px;
   justify-content: space-between;
-  padding: 34px 42px 18px;
+  padding: 42px 56px 24px;
 }
 
 .modal-header h3 {
@@ -413,14 +413,23 @@ td {
   letter-spacing: -0.04em;
 }
 
-form,
 #profileContent {
-  padding: 24px 42px 42px;
+  padding: 28px 56px 56px;
+}
+
+#employeeForm > .form-grid,
+#employeeForm > fieldset,
+#employeeForm > .modal-actions,
+#returnForm > label,
+#returnForm > .helper-text,
+#returnForm > .modal-actions {
+  margin-right: 56px;
+  margin-left: 56px;
 }
 
 fieldset {
-  margin: 34px 0 0;
-  padding: 28px 0 0;
+  margin-top: 42px;
+  padding: 34px 0 0;
   border: 0;
   border-top: 1px solid var(--line);
 }
@@ -437,13 +446,13 @@ legend {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 24px;
+  margin-bottom: 30px;
 }
 
 .form-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 24px 18px;
+  gap: 30px 24px;
 }
 
 .span-2 {
@@ -452,7 +461,7 @@ legend {
 
 label {
   display: grid;
-  gap: 7px;
+  gap: 10px;
   color: #42516a;
   font-size: 0.85rem;
   font-weight: 800;
@@ -461,8 +470,8 @@ label {
 input,
 select {
   width: 100%;
-  min-height: 44px;
-  padding: 10px 12px;
+  min-height: 48px;
+  padding: 12px 14px;
   border: 1px solid #cfd8e5;
   border-radius: 12px;
   background: #fff;
@@ -479,10 +488,10 @@ select:focus {
 .asset-row {
   display: grid;
   grid-template-columns: 1.2fr 1fr 0.7fr 0.55fr auto;
-  gap: 16px;
+  gap: 22px 16px;
   align-items: end;
-  margin-bottom: 16px;
-  padding: 22px;
+  margin-bottom: 20px;
+  padding: 26px;
   border: 1px solid var(--line);
   border-radius: 16px;
   background: #fbfdff;
@@ -496,11 +505,12 @@ select:focus {
   display: flex;
   gap: 12px;
   justify-content: flex-end;
-  margin-top: 34px;
+  margin-top: 44px;
+  padding-bottom: 56px;
 }
 
 .helper-text {
-  margin: 14px 0 0;
+  margin-top: 18px;
   color: var(--muted);
   font-size: 0.9rem;
   line-height: 1.55;
@@ -692,6 +702,28 @@ address {
   .app-shell {
     width: min(100% - 20px, 1380px);
     padding-top: 16px;
+  }
+
+  .modal {
+    width: min(100% - 24px, 900px);
+  }
+
+  .modal-header {
+    padding: 30px 26px 18px;
+  }
+
+  #profileContent {
+    padding: 22px 26px 34px;
+  }
+
+  #employeeForm > .form-grid,
+  #employeeForm > fieldset,
+  #employeeForm > .modal-actions,
+  #returnForm > label,
+  #returnForm > .helper-text,
+  #returnForm > .modal-actions {
+    margin-right: 26px;
+    margin-left: 26px;
   }
 
   .hero-card,
