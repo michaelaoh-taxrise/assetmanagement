@@ -1,5 +1,4 @@
 const STORAGE_KEY = "taxriseAssetManagementEmployees";
-const WORK_LOCATIONS = ["CA", "TX", "FL"];
 const createId = () =>
   globalThis.crypto?.randomUUID?.() ?? `id-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
@@ -36,6 +35,7 @@ const seedEmployees = [
     terminationDate: "",
     returnDueDate: "",
     trackingNumber: "",
+    archivedDate: "",
   },
   {
     id: createId(),
@@ -62,40 +62,62 @@ const seedEmployees = [
     terminationDate: "2026-04-16",
     returnDueDate: "2026-04-26",
     trackingNumber: "1Z999AA10123456784",
+    archivedDate: "",
   },
 ];
 
 let employees = loadEmployees();
 let selectedEmployeeId = null;
+let editingEmployeeId = null;
+let searchTerm = "";
 
 const openEmployeeFormButton = document.querySelector("#openEmployeeForm");
 const openEmployeeFormSecondaryButton = document.querySelector("#openEmployeeFormSecondary");
 const employeeDialog = document.querySelector("#employeeDialog");
+const employeeDialogTitle = document.querySelector("#employeeDialogTitle");
+const employeeDialogEyebrow = document.querySelector("#employeeDialogEyebrow");
 const employeeForm = document.querySelector("#employeeForm");
+const employeeSubmitButton = document.querySelector("#employeeSubmitButton");
 const assetRows = document.querySelector("#assetRows");
 const addAssetRowButton = document.querySelector("#addAssetRow");
+const searchInput = document.querySelector("#searchInput");
+const clearSearchButton = document.querySelector("#clearSearch");
 const activeEmployeesTable = document.querySelector("#activeEmployeesTable");
 const pendingReturnTable = document.querySelector("#pendingReturnTable");
+const archivedEmployeesTable = document.querySelector("#archivedEmployeesTable");
 const activeEmptyState = document.querySelector("#activeEmptyState");
 const pendingEmptyState = document.querySelector("#pendingEmptyState");
+const archivedEmptyState = document.querySelector("#archivedEmptyState");
 const activeEmployeeCount = document.querySelector("#activeEmployeeCount");
 const lentAssetCount = document.querySelector("#lentAssetCount");
 const pendingReturnCount = document.querySelector("#pendingReturnCount");
 const overdueCount = document.querySelector("#overdueCount");
+const archivedEmployeeCount = document.querySelector("#archivedEmployeeCount");
+const archivedAssetCount = document.querySelector("#archivedAssetCount");
 const profileDialog = document.querySelector("#profileDialog");
-const profileName = document.querySelector("#profileName");
 const profileContent = document.querySelector("#profileContent");
 const returnDialog = document.querySelector("#returnDialog");
 const returnEmployeeName = document.querySelector("#returnEmployeeName");
 const returnForm = document.querySelector("#returnForm");
-const terminationDateInput = returnForm.elements.terminationDate;
+const terminationDateInput = returnForm?.elements.terminationDate;
 const toast = document.querySelector("#toast");
+const isArchivePage = document.body.dataset.page === "archive";
 
-openEmployeeFormButton.addEventListener("click", openEmployeeDialog);
-openEmployeeFormSecondaryButton.addEventListener("click", openEmployeeDialog);
+openEmployeeFormButton?.addEventListener("click", () => openEmployeeDialog());
+openEmployeeFormSecondaryButton?.addEventListener("click", () => openEmployeeDialog());
 addAssetRowButton.addEventListener("click", () => addAssetRow());
 employeeForm.addEventListener("submit", handleEmployeeSubmit);
-returnForm.addEventListener("submit", handleReturnSubmit);
+returnForm?.addEventListener("submit", handleReturnSubmit);
+searchInput?.addEventListener("input", (event) => {
+  searchTerm = event.target.value.trim().toLowerCase();
+  render();
+});
+clearSearchButton?.addEventListener("click", () => {
+  searchInput.value = "";
+  searchTerm = "";
+  render();
+  searchInput.focus();
+});
 
 document.querySelectorAll("[data-close-dialog]").forEach((button) => {
   button.addEventListener("click", () => {
@@ -117,8 +139,16 @@ document.addEventListener("click", (event) => {
     openProfileModal(employeeId);
   }
 
+  if (action === "edit-employee") {
+    openEmployeeDialog(employeeId);
+  }
+
   if (action === "start-return") {
     openReturnModal(employeeId);
+  }
+
+  if (action === "archive-employee") {
+    archiveEmployee(employeeId);
   }
 
   if (action === "delete-employee") {
@@ -141,9 +171,10 @@ document.addEventListener("input", (event) => {
 
   employee.trackingNumber = input.value.trim();
   saveEmployees();
+  render();
 });
 
-[employeeDialog, profileDialog, returnDialog].forEach((dialog) => {
+[employeeDialog, profileDialog, returnDialog].filter(Boolean).forEach((dialog) => {
   dialog.addEventListener("click", (event) => {
     if (event.target === dialog) {
       dialog.close();
@@ -163,10 +194,29 @@ function loadEmployees() {
 
   try {
     const parsedEmployees = JSON.parse(savedEmployees);
-    return Array.isArray(parsedEmployees) ? parsedEmployees : [];
+    return Array.isArray(parsedEmployees) ? parsedEmployees.map(normalizeEmployee) : [];
   } catch {
     return [];
   }
+}
+
+function normalizeEmployee(employee) {
+  return {
+    ...employee,
+    status: employee.status || "active",
+    trackingNumber: employee.trackingNumber || "",
+    terminationDate: employee.terminationDate || "",
+    returnDueDate: employee.returnDueDate || "",
+    archivedDate: employee.archivedDate || "",
+    address: {
+      address1: employee.address?.address1 || "",
+      address2: employee.address?.address2 || "",
+      city: employee.address?.city || "",
+      state: employee.address?.state || "",
+      zip: employee.address?.zip || "",
+    },
+    assets: Array.isArray(employee.assets) ? employee.assets : [],
+  };
 }
 
 function saveEmployees() {
@@ -176,19 +226,34 @@ function saveEmployees() {
 function render() {
   const activeEmployees = employees.filter((employee) => employee.status === "active");
   const pendingEmployees = employees.filter((employee) => employee.status === "pending-return");
+  const archivedEmployees = employees.filter((employee) => employee.status === "archived");
+
+  if (isArchivePage) {
+    archivedEmployeeCount.textContent = String(archivedEmployees.length);
+    archivedAssetCount.textContent = String(getTotalAssetQuantity(archivedEmployees));
+    renderArchivedEmployees(filterEmployees(archivedEmployees));
+    return;
+  }
 
   activeEmployeeCount.textContent = String(activeEmployees.length);
   lentAssetCount.textContent = String(getTotalAssetQuantity(activeEmployees));
   pendingReturnCount.textContent = String(getTotalAssetQuantity(pendingEmployees));
   overdueCount.textContent = String(pendingEmployees.filter((employee) => isPastDue(employee.returnDueDate)).length);
 
-  renderActiveEmployees(activeEmployees);
-  renderPendingEmployees(pendingEmployees);
+  renderActiveEmployees(filterEmployees(activeEmployees));
+  renderPendingEmployees(filterEmployees(pendingEmployees));
 }
 
 function renderActiveEmployees(activeEmployees) {
+  if (!activeEmployeesTable) {
+    return;
+  }
+
   activeEmployeesTable.innerHTML = "";
   activeEmptyState.hidden = activeEmployees.length > 0;
+  activeEmptyState.textContent = searchTerm
+    ? "No active employees match your search."
+    : "No active asset assignments yet. Add a new employee to get started.";
 
   activeEmployees.forEach((employee) => {
     const row = document.createElement("tr");
@@ -213,8 +278,15 @@ function renderActiveEmployees(activeEmployees) {
 }
 
 function renderPendingEmployees(pendingEmployees) {
+  if (!pendingReturnTable) {
+    return;
+  }
+
   pendingReturnTable.innerHTML = "";
   pendingEmptyState.hidden = pendingEmployees.length > 0;
+  pendingEmptyState.textContent = searchTerm
+    ? "No pending returns match your search."
+    : "No employees are currently pending asset returns.";
 
   pendingEmployees.forEach((employee) => {
     const isOverdue = isPastDue(employee.returnDueDate);
@@ -228,15 +300,11 @@ function renderPendingEmployees(pendingEmployees) {
           ${formatDate(employee.returnDueDate)}
         </span>
       </td>
+      <td>${renderTrackingCell(employee)}</td>
       <td>
-        <input
-          class="tracking-input"
-          data-action="update-tracking"
-          data-employee-id="${employee.id}"
-          aria-label="UPS tracking number for ${escapeHtml(employee.fullName)}"
-          placeholder="Enter UPS tracking"
-          value="${escapeAttribute(employee.trackingNumber || "")}"
-        />
+        <button class="table-action success" type="button" data-action="archive-employee" data-employee-id="${employee.id}">
+          Archive
+        </button>
       </td>
       <td>
         <button class="table-action" type="button" data-action="view-profile" data-employee-id="${employee.id}">
@@ -248,10 +316,83 @@ function renderPendingEmployees(pendingEmployees) {
   });
 }
 
-function openEmployeeDialog() {
+function renderArchivedEmployees(archivedEmployees) {
+  if (!archivedEmployeesTable) {
+    return;
+  }
+
+  archivedEmployeesTable.innerHTML = "";
+  archivedEmptyState.hidden = archivedEmployees.length > 0;
+  archivedEmptyState.textContent = searchTerm
+    ? "No archived employees match your search."
+    : "No returned asset profiles have been archived yet.";
+
+  archivedEmployees.forEach((employee) => {
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td><strong>${escapeHtml(employee.employeeId)}</strong></td>
+      <td>${escapeHtml(employee.fullName)}</td>
+      <td><span class="location-pill">${escapeHtml(employee.workLocation)}</span></td>
+      <td>${getAssetQuantity(employee)}</td>
+      <td>${formatDate(employee.archivedDate)}</td>
+      <td>
+        <button class="table-action" type="button" data-action="view-profile" data-employee-id="${employee.id}">
+          View Profile
+        </button>
+      </td>
+    `;
+    archivedEmployeesTable.append(row);
+  });
+}
+
+function renderTrackingCell(employee) {
+  const trackingNumber = employee.trackingNumber || "";
+  const trackingLink = trackingNumber ? getUpsTrackingUrl(trackingNumber) : "";
+
+  return `
+    <div class="tracking-control">
+      <input
+        class="tracking-input"
+        data-action="update-tracking"
+        data-employee-id="${employee.id}"
+        aria-label="UPS tracking number for ${escapeAttribute(employee.fullName)}"
+        placeholder="Enter UPS tracking"
+        value="${escapeAttribute(trackingNumber)}"
+      />
+      ${
+        trackingLink
+          ? `<a class="tracking-link" href="${trackingLink}" target="_blank" rel="noopener noreferrer">Track UPS</a>`
+          : ""
+      }
+    </div>
+  `;
+}
+
+function openEmployeeDialog(employeeId = null) {
+  const employee = employeeId ? employees.find((item) => item.id === employeeId) : null;
+  editingEmployeeId = employee?.id || null;
+
   employeeForm.reset();
   assetRows.innerHTML = "";
-  addAssetRow();
+
+  employeeDialogEyebrow.textContent = employee ? "Edit asset profile" : "New asset profile";
+  employeeDialogTitle.textContent = employee ? "Edit Employee Profile" : "Add New Employee";
+  employeeSubmitButton.textContent = employee ? "Save Profile Updates" : "Generate Full Asset Profile";
+
+  if (employee) {
+    employeeForm.elements.employeeId.value = employee.employeeId;
+    employeeForm.elements.fullName.value = employee.fullName;
+    employeeForm.elements.workLocation.value = employee.workLocation;
+    employeeForm.elements.address1.value = employee.address.address1;
+    employeeForm.elements.address2.value = employee.address.address2;
+    employeeForm.elements.city.value = employee.address.city;
+    employeeForm.elements.state.value = employee.address.state;
+    employeeForm.elements.zipCode.value = employee.address.zip;
+    employee.assets.forEach((asset) => addAssetRow(asset));
+  } else {
+    addAssetRow();
+  }
+
   employeeDialog.showModal();
   employeeForm.elements.employeeId.focus();
 }
@@ -295,8 +436,16 @@ function handleEmployeeSubmit(event) {
   event.preventDefault();
   const formData = new FormData(employeeForm);
   const employeeId = String(formData.get("employeeId")).trim();
+  const existingEmployee = editingEmployeeId
+    ? employees.find((employee) => employee.id === editingEmployeeId)
+    : null;
 
-  if (employees.some((employee) => employee.employeeId.toLowerCase() === employeeId.toLowerCase())) {
+  const duplicateEmployeeId = employees.some(
+    (employee) =>
+      employee.id !== editingEmployeeId && employee.employeeId.toLowerCase() === employeeId.toLowerCase(),
+  );
+
+  if (duplicateEmployeeId) {
     showToast("That employee ID already exists.");
     return;
   }
@@ -310,8 +459,8 @@ function handleEmployeeSubmit(event) {
     quantity: Number(row.querySelector("[name='quantity']").value),
   }));
 
-  const employee = {
-    id: createId(),
+  const updatedEmployee = {
+    id: existingEmployee?.id || createId(),
     employeeId,
     fullName: String(formData.get("fullName")).trim(),
     workLocation: String(formData.get("workLocation")),
@@ -323,18 +472,25 @@ function handleEmployeeSubmit(event) {
       zip: String(formData.get("zipCode")).trim(),
     },
     assets,
-    status: "active",
-    terminationDate: "",
-    returnDueDate: "",
-    trackingNumber: "",
+    status: existingEmployee?.status || "active",
+    terminationDate: existingEmployee?.terminationDate || "",
+    returnDueDate: existingEmployee?.returnDueDate || "",
+    trackingNumber: existingEmployee?.trackingNumber || "",
+    archivedDate: existingEmployee?.archivedDate || "",
   };
 
-  employees = [employee, ...employees];
+  if (existingEmployee) {
+    employees = employees.map((employee) => (employee.id === existingEmployee.id ? updatedEmployee : employee));
+  } else {
+    employees = [updatedEmployee, ...employees];
+  }
+
   saveEmployees();
   render();
   employeeDialog.close();
-  openProfileModal(employee.id);
-  showToast("Employee asset profile created.");
+  editingEmployeeId = null;
+  openProfileModal(updatedEmployee.id);
+  showToast(existingEmployee ? "Employee asset profile updated." : "Employee asset profile created.");
 }
 
 function openProfileModal(employeeId) {
@@ -349,11 +505,9 @@ function openProfileModal(employeeId) {
     0,
   );
 
-  profileName.textContent = employee.fullName;
   profileContent.innerHTML = `
     <div class="profile-header">
       <div>
-        <p class="eyebrow">Full Asset Profile</p>
         <h2>${escapeHtml(employee.fullName)}</h2>
         <p>${escapeHtml(employee.employeeId)} • ${escapeHtml(employee.workLocation)} • ${formatStatus(employee.status)}</p>
       </div>
@@ -373,6 +527,16 @@ function openProfileModal(employeeId) {
             employee.terminationDate
               ? `<div><dt>Termination date</dt><dd>${formatDate(employee.terminationDate)}</dd></div>
                  <div><dt>Return due date</dt><dd>${formatDate(employee.returnDueDate)}</dd></div>`
+              : ""
+          }
+          ${
+            employee.archivedDate
+              ? `<div><dt>Archived date</dt><dd>${formatDate(employee.archivedDate)}</dd></div>`
+              : ""
+          }
+          ${
+            employee.trackingNumber
+              ? `<div><dt>UPS tracking</dt><dd><a href="${getUpsTrackingUrl(employee.trackingNumber)}" target="_blank" rel="noopener noreferrer">${escapeHtml(employee.trackingNumber)}</a></dd></div>`
               : ""
           }
         </dl>
@@ -407,21 +571,47 @@ function openProfileModal(employeeId) {
     </section>
     <div class="profile-actions">
       <div>
-        <h3>Remove Employee</h3>
-        <p>Delete this employee and all asset-return details from both asset tables.</p>
+        <h3>Profile Actions</h3>
+        <p>Edit this profile, archive returned equipment, or delete the employee record entirely.</p>
       </div>
-      <button
-        class="secondary-button destructive-button"
-        type="button"
-        data-action="delete-employee"
-        data-employee-id="${employee.id}"
-      >
-        Delete Employee
-      </button>
+      <div class="profile-action-buttons">
+        <button class="secondary-button" type="button" data-action="edit-employee" data-employee-id="${employee.id}">
+          Edit Profile
+        </button>
+        ${
+          employee.status === "pending-return"
+            ? `<button class="secondary-button success-button" type="button" data-action="archive-employee" data-employee-id="${employee.id}">Archive Returned</button>`
+            : ""
+        }
+        <button class="secondary-button destructive-button" type="button" data-action="delete-employee" data-employee-id="${employee.id}">
+          Delete Employee
+        </button>
+      </div>
     </div>
   `;
 
   profileDialog.showModal();
+}
+
+function archiveEmployee(employeeId) {
+  const employee = employees.find((item) => item.id === employeeId);
+
+  if (!employee) {
+    return;
+  }
+
+  const confirmed = window.confirm(`Archive ${employee.fullName}'s profile as returned?`);
+
+  if (!confirmed) {
+    return;
+  }
+
+  employee.status = "archived";
+  employee.archivedDate = new Date().toISOString().slice(0, 10);
+  saveEmployees();
+  render();
+  profileDialog.close();
+  showToast("Employee asset profile archived.");
 }
 
 function deleteEmployee(employeeId) {
@@ -474,12 +664,43 @@ function handleReturnSubmit(event) {
   employee.terminationDate = terminationDateInput.value;
   employee.returnDueDate = addCalendarDays(terminationDateInput.value, 10);
   employee.trackingNumber = employee.trackingNumber || "";
+  employee.archivedDate = "";
 
   saveEmployees();
   render();
   returnDialog.close();
   selectedEmployeeId = null;
   showToast("Return process started.");
+}
+
+function filterEmployees(employeeList) {
+  if (!searchTerm) {
+    return employeeList;
+  }
+
+  return employeeList.filter((employee) => getSearchText(employee).includes(searchTerm));
+}
+
+function getSearchText(employee) {
+  return [
+    employee.employeeId,
+    employee.fullName,
+    employee.workLocation,
+    employee.address.address1,
+    employee.address.address2,
+    employee.address.city,
+    employee.address.state,
+    employee.address.zip,
+    employee.trackingNumber,
+    ...employee.assets.flatMap((asset) => [
+      asset.equipmentName,
+      asset.serialNumber,
+      asset.unitPrice,
+      asset.quantity,
+    ]),
+  ]
+    .join(" ")
+    .toLowerCase();
 }
 
 function getAssetQuantity(employee) {
@@ -506,6 +727,10 @@ function isPastDue(dateValue) {
   return new Date(`${dateValue}T00:00:00`) < today;
 }
 
+function getUpsTrackingUrl(trackingNumber) {
+  return `https://www.ups.com/track?tracknum=${encodeURIComponent(trackingNumber)}`;
+}
+
 function formatDate(dateValue) {
   if (!dateValue) {
     return "Not set";
@@ -526,7 +751,15 @@ function formatCurrency(value) {
 }
 
 function formatStatus(status) {
-  return status === "pending-return" ? "Assets Pending Return" : "Employees With Assets";
+  if (status === "pending-return") {
+    return "Assets Pending Return";
+  }
+
+  if (status === "archived") {
+    return "Archived";
+  }
+
+  return "Employees With Assets";
 }
 
 function showToast(message) {
@@ -539,7 +772,7 @@ function showToast(message) {
 }
 
 function escapeHtml(value) {
-  return String(value)
+  return String(value ?? "")
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
