@@ -120,6 +120,10 @@ document.addEventListener("click", (event) => {
   if (action === "start-return") {
     openReturnModal(employeeId);
   }
+
+  if (action === "delete-employee") {
+    deleteEmployee(employeeId);
+  }
 });
 
 document.addEventListener("input", (event) => {
@@ -401,9 +405,45 @@ function openProfileModal(employeeId) {
           .join("")}
       </div>
     </section>
+    <div class="profile-actions">
+      <div>
+        <h3>Remove Employee</h3>
+        <p>Delete this employee and all asset-return details from both asset tables.</p>
+      </div>
+      <button
+        class="secondary-button destructive-button"
+        type="button"
+        data-action="delete-employee"
+        data-employee-id="${employee.id}"
+      >
+        Delete Employee
+      </button>
+    </div>
   `;
 
   profileDialog.showModal();
+}
+
+function deleteEmployee(employeeId) {
+  const employee = employees.find((item) => item.id === employeeId);
+
+  if (!employee) {
+    return;
+  }
+
+  const confirmed = window.confirm(
+    `Delete ${employee.fullName}'s asset profile? This will remove the employee from all tables.`,
+  );
+
+  if (!confirmed) {
+    return;
+  }
+
+  employees = employees.filter((item) => item.id !== employeeId);
+  saveEmployees();
+  render();
+  profileDialog.close();
+  showToast("Employee asset profile deleted.");
 }
 
 function openReturnModal(employeeId) {
