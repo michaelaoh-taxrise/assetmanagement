@@ -409,10 +409,14 @@ td {
   min-width: 220px;
 }
 
-.tracking-cell {
+.tracking-control {
   display: grid;
   gap: 8px;
   min-width: 240px;
+}
+
+.tracking-status-select {
+  min-width: 180px;
 }
 
 .tracking-link {
@@ -425,6 +429,41 @@ td {
 .tracking-link:hover {
   color: var(--brand-dark);
   text-decoration: underline;
+}
+
+.delivery-pill,
+.asset-status-pill,
+.assignee-pill {
+  display: inline-flex;
+  align-items: center;
+  width: max-content;
+  min-height: 28px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.delivery-pill.delivered,
+.asset-status-pill.issued {
+  background: #e9f8f2;
+  color: #10845f;
+}
+
+.delivery-pill.on-the-way {
+  background: var(--brand-soft);
+  color: var(--brand-dark);
+}
+
+.delivery-pill.pending-pickup {
+  background: #fff5e8;
+  color: #9a5b00;
+}
+
+.asset-status-pill.returned,
+.assignee-pill.unissued {
+  background: #eef2f6;
+  color: #748197;
 }
 
 .empty-state {
@@ -697,6 +736,68 @@ address {
   display: flex;
   justify-content: space-between;
   gap: 12px;
+}
+
+.asset-card-header {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.asset-card-header h4 {
+  margin-bottom: 8px;
+}
+
+.asset-card-meta {
+  margin-bottom: 16px;
+}
+
+.asset-card-meta p {
+  margin-bottom: 6px;
+}
+
+.asset-card-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.asset-detail-list {
+  display: grid;
+  gap: 12px;
+  padding: 0 56px 56px;
+}
+
+.asset-detail-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 140px minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #fbfdff;
+}
+
+.asset-detail-row strong,
+.asset-detail-row span {
+  display: block;
+}
+
+.asset-detail-row span {
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.assignee-pill {
+  background: var(--brand-soft);
+  color: var(--brand-dark);
+}
+
+.inventory-summary {
+  color: var(--muted);
+  font-size: 0.9rem;
 }
 
 .profile-actions {

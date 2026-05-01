@@ -1,4 +1,9 @@
 const STORAGE_KEY = "taxriseAssetManagementEmployees";
+const ASSET_STATUS = {
+  ISSUED: "issued",
+  RETURNED: "returned",
+};
+const TRACKING_STATUSES = ["Pending pickup", "On the way", "Delivered"];
 const createId = () =>
   globalThis.crypto?.randomUUID?.() ?? `id-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
@@ -22,6 +27,7 @@ const seedEmployees = [
         serialNumber: "C02TR1042MBP",
         unitPrice: 2199,
         quantity: 1,
+        status: ASSET_STATUS.ISSUED,
       },
       {
         id: createId(),
@@ -29,6 +35,7 @@ const seedEmployees = [
         serialNumber: "MON-77821",
         unitPrice: 429,
         quantity: 2,
+        status: ASSET_STATUS.ISSUED,
       },
     ],
     status: "active",
@@ -56,12 +63,14 @@ const seedEmployees = [
         serialNumber: "PF-30TX1188",
         unitPrice: 1650,
         quantity: 1,
+        status: ASSET_STATUS.ISSUED,
       },
     ],
     status: "pending-return",
     terminationDate: "2026-04-16",
     returnDueDate: "2026-04-26",
     trackingNumber: "1Z999AA10123456784",
+    trackingStatus: "On the way",
     archivedDate: "",
   },
 ];
@@ -85,23 +94,35 @@ const clearSearchButton = document.querySelector("#clearSearch");
 const activeEmployeesTable = document.querySelector("#activeEmployeesTable");
 const pendingReturnTable = document.querySelector("#pendingReturnTable");
 const archivedEmployeesTable = document.querySelector("#archivedEmployeesTable");
+const assetInventoryTable = document.querySelector("#assetInventoryTable");
 const activeEmptyState = document.querySelector("#activeEmptyState");
 const pendingEmptyState = document.querySelector("#pendingEmptyState");
 const archivedEmptyState = document.querySelector("#archivedEmptyState");
+const assetInventoryEmptyState = document.querySelector("#assetInventoryEmptyState");
 const activeEmployeeCount = document.querySelector("#activeEmployeeCount");
 const lentAssetCount = document.querySelector("#lentAssetCount");
 const pendingReturnCount = document.querySelector("#pendingReturnCount");
 const overdueCount = document.querySelector("#overdueCount");
 const archivedEmployeeCount = document.querySelector("#archivedEmployeeCount");
 const archivedAssetCount = document.querySelector("#archivedAssetCount");
+const companyAssetCount = document.querySelector("#companyAssetCount");
+const companyIssuedCount = document.querySelector("#companyIssuedCount");
+const companyAvailableCount = document.querySelector("#companyAvailableCount");
+const inventoryValue = document.querySelector("#inventoryValue");
+const companyAssetsTable = document.querySelector("#companyAssetsTable");
+const companyAssetsEmptyState = document.querySelector("#companyAssetsEmptyState");
 const profileDialog = document.querySelector("#profileDialog");
 const profileContent = document.querySelector("#profileContent");
+const assetDetailsDialog = document.querySelector("#assetDetailsDialog");
+const assetDetailsTitle = document.querySelector("#assetDetailsTitle");
+const assetDetailsContent = document.querySelector("#assetDetailsContent");
 const returnDialog = document.querySelector("#returnDialog");
 const returnEmployeeName = document.querySelector("#returnEmployeeName");
 const returnForm = document.querySelector("#returnForm");
 const terminationDateInput = returnForm?.elements.terminationDate;
 const toast = document.querySelector("#toast");
 const isArchivePage = document.body.dataset.page === "archive";
+const isAssetsPage = document.body.dataset.page === "assets";
 
 openEmployeeFormButton?.addEventListener("click", () => openEmployeeDialog());
 openEmployeeFormSecondaryButton?.addEventListener("click", () => openEmployeeDialog());
@@ -151,6 +172,14 @@ document.addEventListener("click", (event) => {
     archiveEmployee(employeeId);
   }
 
+  if (action === "update-asset-status") {
+    updateAssetStatus(employeeId, actionButton.dataset.assetId, actionButton.dataset.assetStatus);
+  }
+
+  if (action === "view-asset-details") {
+    openAssetDetails(actionButton.dataset.equipmentName);
+  }
+
   if (action === "delete-employee") {
     deleteEmployee(employeeId);
   }
@@ -174,7 +203,23 @@ document.addEventListener("input", (event) => {
   render();
 });
 
-[employeeDialog, profileDialog, returnDialog].filter(Boolean).forEach((dialog) => {
+document.addEventListener("change", (event) => {
+  const input = event.target;
+
+  if (input.matches("[data-action='update-tracking-status']")) {
+    const employee = employees.find((item) => item.id === input.dataset.employeeId);
+
+    if (!employee) {
+      return;
+    }
+
+    employee.trackingStatus = input.value;
+    saveEmployees();
+    render();
+  }
+});
+
+[employeeDialog, profileDialog, returnDialog, assetDetailsDialog].filter(Boolean).forEach((dialog) => {
   dialog.addEventListener("click", (event) => {
     if (event.target === dialog) {
       dialog.close();
@@ -205,6 +250,7 @@ function normalizeEmployee(employee) {
     ...employee,
     status: employee.status || "active",
     trackingNumber: employee.trackingNumber || "",
+    trackingStatus: employee.trackingStatus || "",
     terminationDate: employee.terminationDate || "",
     returnDueDate: employee.returnDueDate || "",
     archivedDate: employee.archivedDate || "",
@@ -215,7 +261,13 @@ function normalizeEmployee(employee) {
       state: employee.address?.state || "",
       zip: employee.address?.zip || "",
     },
-    assets: Array.isArray(employee.assets) ? employee.assets : [],
+    assets: Array.isArray(employee.assets)
+      ? employee.assets.map((asset) => ({
+          ...asset,
+          id: asset.id || createId(),
+          status: asset.status || ASSET_STATUS.ISSUED,
+        }))
+      : [],
   };
 }
 
@@ -227,6 +279,18 @@ function render() {
   const activeEmployees = employees.filter((employee) => employee.status === "active");
   const pendingEmployees = employees.filter((employee) => employee.status === "pending-return");
   const archivedEmployees = employees.filter((employee) => employee.status === "archived");
+  const inventory = getAssetInventory();
+
+  if (isAssetsPage) {
+    const filteredInventory = filterInventory(inventory);
+    const totals = getInventoryTotals(inventory);
+
+    companyAssetCount.textContent = String(totals.total);
+    companyIssuedCount.textContent = String(totals.issued);
+    companyAvailableCount.textContent = String(totals.available);
+    renderCompanyAssets(filteredInventory);
+    return;
+  }
 
   if (isArchivePage) {
     archivedEmployeeCount.textContent = String(archivedEmployees.length);
@@ -236,8 +300,8 @@ function render() {
   }
 
   activeEmployeeCount.textContent = String(activeEmployees.length);
-  lentAssetCount.textContent = String(getTotalAssetQuantity(activeEmployees));
-  pendingReturnCount.textContent = String(getTotalAssetQuantity(pendingEmployees));
+  lentAssetCount.textContent = String(getIssuedAssetQuantity(activeEmployees));
+  pendingReturnCount.textContent = String(getIssuedAssetQuantity(pendingEmployees));
   overdueCount.textContent = String(pendingEmployees.filter((employee) => isPastDue(employee.returnDueDate)).length);
 
   renderActiveEmployees(filterEmployees(activeEmployees));
@@ -261,7 +325,7 @@ function renderActiveEmployees(activeEmployees) {
       <td><strong>${escapeHtml(employee.employeeId)}</strong></td>
       <td>${escapeHtml(employee.fullName)}</td>
       <td><span class="location-pill">${escapeHtml(employee.workLocation)}</span></td>
-      <td>${getAssetQuantity(employee)}</td>
+      <td>${getIssuedAssetQuantity([employee])}</td>
       <td>
         <button class="table-action" type="button" data-action="view-profile" data-employee-id="${employee.id}">
           View Profile
@@ -294,7 +358,7 @@ function renderPendingEmployees(pendingEmployees) {
     row.innerHTML = `
       <td><strong>${escapeHtml(employee.employeeId)}</strong></td>
       <td>${escapeHtml(employee.fullName)}</td>
-      <td>${getAssetQuantity(employee)}</td>
+      <td>${getIssuedAssetQuantity([employee])}</td>
       <td>
         <span class="due-date ${isOverdue ? "overdue" : ""}">
           ${formatDate(employee.returnDueDate)}
@@ -345,9 +409,42 @@ function renderArchivedEmployees(archivedEmployees) {
   });
 }
 
+function renderCompanyAssets(inventoryItems) {
+  if (!companyAssetsTable) {
+    return;
+  }
+
+  companyAssetsTable.innerHTML = "";
+  companyAssetsEmptyState.hidden = inventoryItems.length > 0;
+  companyAssetsEmptyState.textContent = searchTerm
+    ? "No company assets match your search."
+    : "No company assets have been added yet.";
+
+  inventoryItems.forEach((item) => {
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td><strong>${escapeHtml(item.equipmentName)}</strong></td>
+      <td>${item.quantityIssued}</td>
+      <td>${item.quantityAvailable}</td>
+      <td>
+        <button
+          class="table-action"
+          type="button"
+          data-action="view-asset-details"
+          data-equipment-name="${escapeAttribute(item.equipmentName)}"
+        >
+          Expand
+        </button>
+      </td>
+    `;
+    companyAssetsTable.append(row);
+  });
+}
+
 function renderTrackingCell(employee) {
   const trackingNumber = employee.trackingNumber || "";
   const trackingLink = trackingNumber ? getUpsTrackingUrl(trackingNumber) : "";
+  const trackingStatus = employee.trackingStatus || "";
 
   return `
     <div class="tracking-control">
@@ -359,6 +456,18 @@ function renderTrackingCell(employee) {
         placeholder="Enter UPS tracking"
         value="${escapeAttribute(trackingNumber)}"
       />
+      <select
+        class="tracking-status-select"
+        data-action="update-tracking-status"
+        data-employee-id="${employee.id}"
+        aria-label="UPS delivery status for ${escapeAttribute(employee.fullName)}"
+      >
+        <option value="">Delivery status</option>
+        ${TRACKING_STATUSES.map(
+          (status) =>
+            `<option value="${escapeAttribute(status)}" ${trackingStatus === status ? "selected" : ""}>${escapeHtml(status)}</option>`,
+        ).join("")}
+      </select>
       ${
         trackingLink
           ? `<a class="tracking-link" href="${trackingLink}" target="_blank" rel="noopener noreferrer">Track UPS</a>`
@@ -417,6 +526,13 @@ function addAssetRow(asset = {}) {
       <span>Quantity</span>
       <input name="quantity" required min="1" step="1" type="number" value="${asset.quantity || 1}" />
     </label>
+    <label>
+      <span>Status</span>
+      <select name="assetStatus" required>
+        <option value="${ASSET_STATUS.ISSUED}" ${(asset.status || ASSET_STATUS.ISSUED) === ASSET_STATUS.ISSUED ? "selected" : ""}>Issued</option>
+        <option value="${ASSET_STATUS.RETURNED}" ${asset.status === ASSET_STATUS.RETURNED ? "selected" : ""}>Returned</option>
+      </select>
+    </label>
     <button class="icon-button remove-asset" type="button" aria-label="Remove asset">Remove</button>
   `;
 
@@ -451,13 +567,18 @@ function handleEmployeeSubmit(event) {
   }
 
   const assetRowElements = [...assetRows.querySelectorAll(".asset-row")];
-  const assets = assetRowElements.map((row) => ({
-    id: createId(),
-    equipmentName: row.querySelector("[name='equipmentName']").value.trim(),
-    serialNumber: row.querySelector("[name='serialNumber']").value.trim(),
-    unitPrice: Number(row.querySelector("[name='unitPrice']").value),
-    quantity: Number(row.querySelector("[name='quantity']").value),
-  }));
+  const assets = assetRowElements.map((row, index) => {
+    const previousAsset = existingEmployee?.assets[index];
+
+    return {
+      id: previousAsset?.id || createId(),
+      equipmentName: row.querySelector("[name='equipmentName']").value.trim(),
+      serialNumber: row.querySelector("[name='serialNumber']").value.trim(),
+      unitPrice: Number(row.querySelector("[name='unitPrice']").value),
+      quantity: Number(row.querySelector("[name='quantity']").value),
+      status: row.querySelector("[name='assetStatus']").value,
+    };
+  });
 
   const updatedEmployee = {
     id: existingEmployee?.id || createId(),
@@ -476,6 +597,7 @@ function handleEmployeeSubmit(event) {
     terminationDate: existingEmployee?.terminationDate || "",
     returnDueDate: existingEmployee?.returnDueDate || "",
     trackingNumber: existingEmployee?.trackingNumber || "",
+    trackingStatus: existingEmployee?.trackingStatus || "",
     archivedDate: existingEmployee?.archivedDate || "",
   };
 
@@ -539,6 +661,11 @@ function openProfileModal(employeeId) {
               ? `<div><dt>UPS tracking</dt><dd><a href="${getUpsTrackingUrl(employee.trackingNumber)}" target="_blank" rel="noopener noreferrer">${escapeHtml(employee.trackingNumber)}</a></dd></div>`
               : ""
           }
+          ${
+            employee.trackingStatus
+              ? `<div><dt>Delivery status</dt><dd>${escapeHtml(employee.trackingStatus)}</dd></div>`
+              : ""
+          }
         </dl>
       </section>
       <section>
@@ -562,6 +689,21 @@ function openProfileModal(employeeId) {
                 <div>
                   <span>${formatCurrency(Number(asset.unitPrice))} each</span>
                   <strong>Qty ${Number(asset.quantity)}</strong>
+                </div>
+                <div class="asset-status-controls">
+                  <span class="asset-status-pill ${asset.status === ASSET_STATUS.RETURNED ? "returned" : "issued"}">
+                    ${asset.status === ASSET_STATUS.RETURNED ? "Returned" : "Issued"}
+                  </span>
+                  <button
+                    class="table-action ${asset.status === ASSET_STATUS.RETURNED ? "" : "success"}"
+                    type="button"
+                    data-action="update-asset-status"
+                    data-employee-id="${employee.id}"
+                    data-asset-id="${asset.id}"
+                    data-asset-status="${asset.status === ASSET_STATUS.RETURNED ? ASSET_STATUS.ISSUED : ASSET_STATUS.RETURNED}"
+                  >
+                    Mark ${asset.status === ASSET_STATUS.RETURNED ? "Issued" : "Returned"}
+                  </button>
                 </div>
               </article>
             `,
@@ -608,6 +750,7 @@ function archiveEmployee(employeeId) {
 
   employee.status = "archived";
   employee.archivedDate = new Date().toISOString().slice(0, 10);
+  employee.assets = employee.assets.map((asset) => ({ ...asset, status: ASSET_STATUS.RETURNED }));
   saveEmployees();
   render();
   profileDialog.close();
@@ -664,6 +807,7 @@ function handleReturnSubmit(event) {
   employee.terminationDate = terminationDateInput.value;
   employee.returnDueDate = addCalendarDays(terminationDateInput.value, 10);
   employee.trackingNumber = employee.trackingNumber || "";
+  employee.trackingStatus = employee.trackingStatus || "Pending pickup";
   employee.archivedDate = "";
 
   saveEmployees();
@@ -692,11 +836,13 @@ function getSearchText(employee) {
     employee.address.state,
     employee.address.zip,
     employee.trackingNumber,
+    employee.trackingStatus,
     ...employee.assets.flatMap((asset) => [
       asset.equipmentName,
       asset.serialNumber,
       asset.unitPrice,
       asset.quantity,
+      asset.status,
     ]),
   ]
     .join(" ")
@@ -709,6 +855,167 @@ function getAssetQuantity(employee) {
 
 function getTotalAssetQuantity(employeeList) {
   return employeeList.reduce((total, employee) => total + getAssetQuantity(employee), 0);
+}
+
+function getIssuedAssetQuantity(employeeList) {
+  return employeeList.reduce(
+    (total, employee) =>
+      total +
+      employee.assets.reduce(
+        (assetTotal, asset) =>
+          asset.status === ASSET_STATUS.RETURNED ? assetTotal : assetTotal + Number(asset.quantity),
+        0,
+      ),
+    0,
+  );
+}
+
+function updateAssetStatus(employeeId, assetId, status) {
+  const employee = employees.find((item) => item.id === employeeId);
+
+  if (!employee) {
+    return;
+  }
+
+  employee.assets = employee.assets.map((asset) => (asset.id === assetId ? { ...asset, status } : asset));
+  saveEmployees();
+  render();
+  openProfileModal(employeeId);
+  showToast(`Asset marked ${status === ASSET_STATUS.RETURNED ? "returned" : "issued"}.`);
+}
+
+function getAssetInventory() {
+  const inventory = new Map();
+
+  employees.forEach((employee) => {
+    employee.assets.forEach((asset) => {
+      const equipmentName = asset.equipmentName || "Unnamed equipment";
+      const quantity = Number(asset.quantity) || 0;
+      const existing = inventory.get(equipmentName) || {
+        equipmentName,
+        quantityIssued: 0,
+        quantityAvailable: 0,
+        totalValue: 0,
+        units: [],
+      };
+      const isReturned = asset.status === ASSET_STATUS.RETURNED;
+
+      if (isReturned) {
+        existing.quantityAvailable += quantity;
+      } else {
+        existing.quantityIssued += quantity;
+      }
+
+      existing.totalValue += (Number(asset.unitPrice) || 0) * quantity;
+
+      for (let index = 0; index < Math.max(quantity, 1); index += 1) {
+        existing.units.push({
+          ...asset,
+          quantity: 1,
+          serialNumber:
+            quantity > 1 && asset.serialNumber
+              ? `${asset.serialNumber} (${index + 1} of ${quantity})`
+              : asset.serialNumber,
+          employeeId: employee.id,
+          employeeName: employee.fullName,
+          employeeNumber: employee.employeeId,
+          employeeStatus: employee.status,
+        });
+      }
+      inventory.set(equipmentName, existing);
+    });
+  });
+
+  return [...inventory.values()].sort((a, b) => a.equipmentName.localeCompare(b.equipmentName));
+}
+
+function filterInventory(inventoryItems) {
+  if (!searchTerm) {
+    return inventoryItems;
+  }
+
+  return inventoryItems.filter((item) =>
+    [
+      item.equipmentName,
+      ...item.units.flatMap((unit) => [
+        unit.serialNumber,
+        unit.unitPrice,
+        unit.quantity,
+        unit.status,
+        unit.employeeName,
+        unit.employeeNumber,
+      ]),
+    ]
+      .join(" ")
+      .toLowerCase()
+      .includes(searchTerm),
+  );
+}
+
+function getInventoryTotals(inventoryItems) {
+  return inventoryItems.reduce(
+    (totals, item) => ({
+      total: totals.total + item.quantityIssued + item.quantityAvailable,
+      issued: totals.issued + item.quantityIssued,
+      available: totals.available + item.quantityAvailable,
+    }),
+    { total: 0, issued: 0, available: 0 },
+  );
+}
+
+function openAssetDetails(equipmentName) {
+  const item = getAssetInventory().find((inventoryItem) => inventoryItem.equipmentName === equipmentName);
+
+  if (!item || !assetDetailsDialog) {
+    return;
+  }
+
+  assetDetailsTitle.textContent = item.equipmentName;
+  assetDetailsContent.innerHTML = `
+    <div class="inventory-summary">
+      <span>${item.quantityIssued} issued</span>
+      <span>${item.quantityAvailable} available</span>
+      <span>${formatCurrency(item.totalValue)} total value</span>
+    </div>
+    <div class="asset-detail-list">
+      ${item.units
+        .flatMap((unit) =>
+          Array.from({ length: Math.max(Number(unit.quantity) || 0, 1) }, (_, index) => ({ ...unit, unitIndex: index })),
+        )
+        .map(
+          (unit) => `
+            <article class="asset-detail-row">
+              <div>
+                <strong>
+                  ${escapeHtml(
+                    unit.serialNumber
+                      ? unit.quantity > 1
+                        ? `${unit.serialNumber} #${unit.unitIndex + 1}`
+                        : unit.serialNumber
+                      : `No serial number #${unit.unitIndex + 1}`,
+                  )}
+                </strong>
+                <span>${formatCurrency(Number(unit.unitPrice))} each</span>
+              </div>
+              <div>
+                <span class="asset-status-pill ${unit.status === ASSET_STATUS.RETURNED ? "returned" : "issued"}">
+                  ${unit.status === ASSET_STATUS.RETURNED ? "Returned" : "Issued"}
+                </span>
+              </div>
+              <div>
+                ${
+                  unit.status === ASSET_STATUS.RETURNED
+                    ? '<span class="not-issued">Not issued</span>'
+                    : `<button class="table-action" type="button" data-action="view-profile" data-employee-id="${unit.employeeId}">${escapeHtml(unit.employeeName)} (${escapeHtml(unit.employeeNumber)})</button>`
+                }
+              </div>
+            </article>
+          `,
+        )
+        .join("")}
+    </div>
+  `;
+  assetDetailsDialog.showModal();
 }
 
 function addCalendarDays(dateValue, days) {

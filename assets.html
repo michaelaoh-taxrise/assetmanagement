@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>TaxRise Asset Management</title>
+    <title>TaxRise Company Assets</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -12,7 +12,7 @@
     />
     <link rel="stylesheet" href="styles.css" />
   </head>
-  <body>
+  <body data-page="assets">
     <div class="app-shell">
       <aside class="sidebar" aria-label="Application sidebar">
         <div class="brand">
@@ -28,129 +28,107 @@
           </div>
         </div>
         <nav class="side-nav" aria-label="Primary">
-          <a href="#welcome" class="active">Homebase</a>
-          <a href="#employees-with-assets">Employees With Assets</a>
-          <a href="#assets-pending-return">Assets Pending Return</a>
-          <a href="assets.html">Assets</a>
+          <a href="index.html#welcome">Homebase</a>
+          <a href="index.html#employees-with-assets">Employees With Assets</a>
+          <a href="index.html#assets-pending-return">Assets Pending Return</a>
+          <a href="assets.html" class="active">Assets</a>
           <a href="archive.html">Archive</a>
         </nav>
         <div class="sidebar-card">
           <span class="status-dot"></span>
-          <p>Equipment lending records are saved to this browser.</p>
+          <p>Company inventory is calculated from saved asset profiles.</p>
         </div>
       </aside>
 
-      <main class="main-content" id="homeView">
-        <section id="welcome" class="hero-card">
+      <main class="main-content">
+        <section class="hero-card">
           <div>
-            <p class="eyebrow">Company equipment command center</p>
-            <h2>Welcome to your TaxRise asset management homebase.</h2>
+            <p class="eyebrow">Company inventory</p>
+            <h2>Assets lent out and available.</h2>
             <p>
-              Track equipment assigned to active employees, create asset profiles, and manage returns
-              for terminated employees in one place.
+              Review every asset in the database, grouped by equipment name, with issued and
+              returned units available for reassignment.
             </p>
           </div>
-          <button class="primary-button" id="openEmployeeForm" type="button">
-            <span>+</span>
-            Add New Employee
-          </button>
+          <a class="secondary-button" href="index.html#welcome">Back to command center</a>
         </section>
 
-        <section class="stats-grid" aria-label="Asset summary">
+        <section class="stats-grid" aria-label="Company asset summary">
           <article>
-            <span id="activeEmployeeCount">0</span>
-            <p>Employees with assets</p>
+            <span id="companyAssetCount">0</span>
+            <p>Total company assets</p>
           </article>
           <article>
-            <span id="lentAssetCount">0</span>
-            <p>Assets currently lent out</p>
+            <span id="companyIssuedCount">0</span>
+            <p>Assets issued</p>
           </article>
           <article>
-            <span id="pendingReturnCount">0</span>
-            <p>Assets pending return</p>
-          </article>
-          <article>
-            <span id="overdueCount">0</span>
-            <p>Overdue returns</p>
+            <span id="companyAvailableCount">0</span>
+            <p>Assets available</p>
           </article>
         </section>
 
-        <section class="search-card" aria-label="Search asset records">
-          <label for="searchInput">Search command center</label>
-          <input
-            id="searchInput"
-            type="search"
-            placeholder="Search by asset, employee name, employee ID, location, serial number, tracking..."
-          />
-          <button class="secondary-button compact" id="clearSearch" type="button">Clear</button>
+        <section class="search-card" aria-label="Search company assets">
+          <label for="searchInput">Search assets</label>
+          <div class="search-row">
+            <input
+              id="searchInput"
+              type="search"
+              placeholder="Search by equipment, serial number, employee, status, price..."
+            />
+            <button class="secondary-button" id="clearSearch" type="button">Clear</button>
+          </div>
         </section>
 
-        <section id="employees-with-assets" class="table-card">
+        <section id="assets" class="table-card">
           <div class="section-heading">
             <div>
-              <p class="eyebrow">Active lending</p>
-              <h3>Employees With Assets</h3>
-            </div>
-            <button class="secondary-button" id="openEmployeeFormSecondary" type="button">
-              Add employee
-            </button>
-          </div>
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Employee ID</th>
-                  <th>Full Name</th>
-                  <th>Work Location</th>
-                  <th>Assets Lent Out</th>
-                  <th>Profile</th>
-                  <th>Return Process</th>
-                </tr>
-              </thead>
-              <tbody id="activeEmployeesTable"></tbody>
-            </table>
-          </div>
-          <div class="empty-state" id="activeEmptyState">
-            No active asset assignments yet. Add a new employee to get started.
-          </div>
-        </section>
-
-        <section id="assets-pending-return" class="table-card">
-          <div class="section-heading">
-            <div>
-              <p class="eyebrow">Termination workflow</p>
-              <h3>Assets Pending Return</h3>
+              <p class="eyebrow">Assets lent out</p>
+              <h3>Company Assets</h3>
+              <p>Expand an equipment row to see serial numbers, unit prices, and current assignees.</p>
             </div>
           </div>
           <div class="table-wrap">
             <table>
               <thead>
                 <tr>
-                  <th>Employee ID</th>
-                  <th>Full Name</th>
-                  <th>Assets Pending Return</th>
-                  <th>Return Due Date</th>
-                  <th>UPS Tracking Number</th>
-                  <th>Archive</th>
-                  <th>Profile</th>
+                  <th>Equipment Name</th>
+                  <th>Quantity Issued</th>
+                  <th>Quantity Available</th>
+                  <th>Details</th>
                 </tr>
               </thead>
-              <tbody id="pendingReturnTable"></tbody>
+              <tbody id="companyAssetsTable"></tbody>
             </table>
           </div>
-          <div class="empty-state" id="pendingEmptyState">
-            No employees are currently pending asset returns.
+          <div class="empty-state" id="companyAssetsEmptyState">
+            No company assets have been added yet.
           </div>
         </section>
       </main>
     </div>
 
+    <dialog id="assetDetailsDialog" class="modal">
+      <article class="modal-panel profile-panel">
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">Asset details</p>
+            <h3 id="assetDetailsTitle">Equipment</h3>
+          </div>
+          <button class="icon-button" type="button" data-close-dialog="assetDetailsDialog" aria-label="Close">
+            &times;
+          </button>
+        </div>
+        <div id="assetDetailsContent"></div>
+      </article>
+    </dialog>
+
     <dialog id="employeeDialog" class="modal">
       <form id="employeeForm" method="dialog" class="modal-panel">
         <div class="modal-header">
           <div>
-            <p class="eyebrow" id="employeeDialogEyebrow">New asset profile</p>
-            <h3 id="employeeDialogTitle">Add New Employee</h3>
+            <p class="eyebrow" id="employeeDialogEyebrow">Edit asset profile</p>
+            <h3 id="employeeDialogTitle">Edit Employee Profile</h3>
           </div>
           <button class="icon-button" type="button" data-close-dialog="employeeDialog" aria-label="Close">
             &times;
@@ -214,34 +192,8 @@
         <div class="modal-actions">
           <button class="secondary-button" type="button" data-close-dialog="employeeDialog">Cancel</button>
           <button class="primary-button" id="employeeSubmitButton" type="submit">
-            Generate Full Asset Profile
+            Save Profile Updates
           </button>
-        </div>
-      </form>
-    </dialog>
-
-    <dialog id="returnDialog" class="modal">
-      <form id="returnForm" method="dialog" class="modal-panel narrow">
-        <div class="modal-header">
-          <div>
-            <p class="eyebrow">Start return process</p>
-            <h3 id="returnEmployeeName">Employee Return</h3>
-          </div>
-          <button class="icon-button" type="button" data-close-dialog="returnDialog" aria-label="Close">
-            &times;
-          </button>
-        </div>
-        <input type="hidden" name="employeeId" />
-        <label>
-          Termination Date
-          <input name="terminationDate" type="date" required />
-        </label>
-        <p class="helper-text">
-          The return due date will be generated automatically as ten calendar days from termination.
-        </p>
-        <div class="modal-actions">
-          <button class="secondary-button" type="button" data-close-dialog="returnDialog">Cancel</button>
-          <button class="primary-button" type="submit">Move to Pending Return</button>
         </div>
       </form>
     </dialog>
