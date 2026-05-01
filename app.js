@@ -82,6 +82,7 @@ const seedEmployees = [
 let employees = loadEmployees();
 let selectedEmployeeId = null;
 let editingEmployeeId = null;
+let assetToIssue = null;
 let searchTerm = "";
 
 const openEmployeeFormButton = document.querySelector("#openEmployeeForm");
@@ -120,6 +121,10 @@ const profileContent = document.querySelector("#profileContent");
 const assetDetailsDialog = document.querySelector("#assetDetailsDialog");
 const assetDetailsTitle = document.querySelector("#assetDetailsTitle");
 const assetDetailsContent = document.querySelector("#assetDetailsContent");
+const issueAssetDialog = document.querySelector("#issueAssetDialog");
+const issueAssetForm = document.querySelector("#issueAssetForm");
+const issueAssetTitle = document.querySelector("#issueAssetTitle");
+const issueExistingEmployee = document.querySelector("#issueExistingEmployee");
 const returnDialog = document.querySelector("#returnDialog");
 const returnEmployeeName = document.querySelector("#returnEmployeeName");
 const returnForm = document.querySelector("#returnForm");
@@ -133,6 +138,7 @@ openEmployeeFormSecondaryButton?.addEventListener("click", () => openEmployeeDia
 addAssetRowButton.addEventListener("click", () => addAssetRow());
 employeeForm.addEventListener("submit", handleEmployeeSubmit);
 returnForm?.addEventListener("submit", handleReturnSubmit);
+issueAssetForm?.addEventListener("submit", handleIssueAssetSubmit);
 searchInput?.addEventListener("input", (event) => {
   searchTerm = event.target.value.trim().toLowerCase();
   render();
@@ -184,6 +190,10 @@ document.addEventListener("click", (event) => {
     openAssetDetails(actionButton.dataset.equipmentName);
   }
 
+  if (action === "issue-asset") {
+    openIssueAssetDialog(actionButton.dataset.employeeId, actionButton.dataset.assetId);
+  }
+
   if (action === "delete-employee") {
     deleteEmployee(employeeId);
   }
@@ -225,9 +235,13 @@ document.addEventListener("change", (event) => {
   if (input.matches("[data-action='update-return-condition']")) {
     updateReturnCondition(input.dataset.employeeId, input.dataset.assetId, input.value);
   }
+
+  if (input.matches("[name='issueMode']")) {
+    toggleIssueFields(input.value);
+  }
 });
 
-[employeeDialog, profileDialog, returnDialog, assetDetailsDialog].filter(Boolean).forEach((dialog) => {
+[employeeDialog, profileDialog, returnDialog, assetDetailsDialog, issueAssetDialog].filter(Boolean).forEach((dialog) => {
   dialog.addEventListener("click", (event) => {
     if (event.target === dialog) {
       dialog.close();
@@ -577,15 +591,24 @@ function handleEmployeeSubmit(event) {
   const assetRowElements = [...assetRows.querySelectorAll(".asset-row")];
   const assets = assetRowElements.map((row, index) => {
     const previousAsset = existingEmployee?.assets[index];
+    const serialNumber = row.querySelector("[name='serialNumber']").value.trim();
+    const matchedAsset = previousAsset ? null : findAvailableAssetBySerial(serialNumber);
 
     return {
-      id: previousAsset?.id || createId(),
+      id: previousAsset?.id || matchedAsset?.asset.id || createId(),
       equipmentName: row.querySelector("[name='equipmentName']").value.trim(),
-      serialNumber: row.querySelector("[name='serialNumber']").value.trim(),
+      serialNumber,
       unitPrice: Number(row.querySelector("[name='unitPrice']").value),
       quantity: Number(row.querySelector("[name='quantity']").value),
       status: row.querySelector("[name='assetStatus']").value,
+      returnCondition: previousAsset?.returnCondition || matchedAsset?.asset.returnCondition || "",
     };
+  });
+
+  assets.forEach((asset) => {
+    if (!existingEmployee) {
+      detachAssetById(asset.id);
+    }
   });
 
   const updatedEmployee = {
@@ -919,11 +942,202 @@ function updateAssetStatus(employeeId, assetId, status) {
     return;
   }
 
-  employee.assets = employee.assets.map((asset) => (asset.id === assetId ? { ...asset, status } : asset));
+  let returnCondition = "";
+
+  if (status === ASSET_STATUS.RETURNED) {
+    returnCondition = window.prompt("Return condition (Excellent, Good, Fair, or Poor):", "") || "";
+    returnCondition = normalizeReturnCondition(returnCondition);
+
+    if (!returnCondition) {
+      showToast("Please enter Excellent, Good, Fair, or Poor.");
+      return;
+    }
+  }
+
+  employee.assets = employee.assets.map((asset) =>
+    asset.id === assetId
+      ? {
+          ...asset,
+          status,
+          returnCondition: status === ASSET_STATUS.RETURNED ? returnCondition : "",
+        }
+      : asset,
+  );
   saveEmployees();
   render();
   openProfileModal(employeeId);
   showToast(`Asset marked ${status === ASSET_STATUS.RETURNED ? "returned" : "issued"}.`);
+}
+
+function updateReturnCondition(employeeId, assetId, returnCondition) {
+  const employee = employees.find((item) => item.id === employeeId);
+
+  if (!employee) {
+    return;
+  }
+
+  employee.assets = employee.assets.map((asset) =>
+    asset.id === assetId
+      ? {
+          ...asset,
+          returnCondition,
+        }
+      : asset,
+  );
+  saveEmployees();
+  showToast("Return condition saved.");
+}
+
+function openIssueAssetDialog(sourceEmployeeId, assetId) {
+  const sourceEmployee = employees.find((employee) => employee.id === sourceEmployeeId);
+  const asset = sourceEmployee?.assets.find((item) => item.id === assetId);
+
+  if (!sourceEmployee || !asset || !issueAssetDialog || !issueAssetForm) {
+    return;
+  }
+
+  issueAssetForm.reset();
+  issueAssetForm.elements.sourceEmployeeId.value = sourceEmployeeId;
+  issueAssetForm.elements.assetId.value = assetId;
+  issueAssetTitle.textContent = `Issue ${asset.equipmentName}`;
+  issueExistingEmployee.innerHTML = employees
+    .filter((employee) => employee.id !== sourceEmployeeId && employee.status !== "archived")
+    .map(
+      (employee) =>
+        `<option value="${employee.id}">${escapeHtml(employee.fullName)} (${escapeHtml(employee.employeeId)})</option>`,
+    )
+    .join("");
+  toggleIssueFields("existing");
+  issueAssetDialog.showModal();
+}
+
+function toggleIssueFields(mode) {
+  document.querySelectorAll("[data-issue-field]").forEach((field) => {
+    field.hidden = field.dataset.issueField !== mode;
+  });
+}
+
+function handleIssueAssetSubmit(event) {
+  event.preventDefault();
+  const formData = new FormData(issueAssetForm);
+  const sourceEmployeeId = String(formData.get("sourceEmployeeId"));
+  const assetId = String(formData.get("assetId"));
+  const issueMode = String(formData.get("issueMode"));
+  const movedAsset = detachAssetFromEmployee(sourceEmployeeId, assetId);
+
+  if (!movedAsset) {
+    showToast("That asset is no longer available.");
+    return;
+  }
+
+  const issuedAsset = {
+    ...movedAsset,
+    status: ASSET_STATUS.ISSUED,
+    returnCondition: "",
+  };
+
+  if (issueMode === "existing") {
+    const targetEmployeeId = String(formData.get("targetEmployeeId"));
+    employees = employees.map((employee) =>
+      employee.id === targetEmployeeId ? { ...employee, assets: [...employee.assets, issuedAsset] } : employee,
+    );
+  } else {
+    const newEmployeeId = String(formData.get("newEmployeeId")).trim();
+    const fullName = String(formData.get("newFullName")).trim();
+    const workLocation = String(formData.get("newWorkLocation"));
+
+    if (!newEmployeeId || !fullName || !workLocation) {
+      showToast("Employee ID, full name, and work location are required.");
+      employees = employees.map((employee) =>
+        employee.id === sourceEmployeeId
+          ? { ...employee, assets: [...employee.assets, movedAsset] }
+          : employee,
+      );
+      return;
+    }
+
+    employees = [
+      {
+        id: createId(),
+        employeeId: newEmployeeId,
+        fullName,
+        workLocation,
+        address: { address1: "", address2: "", city: "", state: "", zip: "" },
+        assets: [issuedAsset],
+        status: "active",
+        terminationDate: "",
+        returnDueDate: "",
+        trackingNumber: "",
+        trackingStatus: "",
+        archivedDate: "",
+      },
+      ...employees,
+    ];
+  }
+
+  saveEmployees();
+  render();
+  assetDetailsDialog.close();
+  issueAssetDialog.close();
+  showToast("Asset issued.");
+}
+
+function detachAssetFromEmployee(employeeId, assetId) {
+  let movedAsset = null;
+  employees = employees.map((employee) => {
+    if (employee.id !== employeeId) {
+      return employee;
+    }
+
+    return {
+      ...employee,
+      assets: employee.assets.filter((asset) => {
+        if (asset.id === assetId) {
+          movedAsset = asset;
+          return false;
+        }
+        return true;
+      }),
+    };
+  });
+  return movedAsset;
+}
+
+function detachAssetById(assetId) {
+  let movedAsset = null;
+  employees = employees.map((employee) => ({
+    ...employee,
+    assets: employee.assets.filter((asset) => {
+      if (asset.id === assetId) {
+        movedAsset = asset;
+        return false;
+      }
+      return true;
+    }),
+  }));
+  return movedAsset;
+}
+
+function findAvailableAssetBySerial(serialNumber) {
+  const normalizedSerial = normalizeSerial(serialNumber);
+
+  if (!normalizedSerial) {
+    return null;
+  }
+
+  for (const employee of employees) {
+    for (const asset of employee.assets) {
+      if (asset.status === ASSET_STATUS.RETURNED && normalizeSerial(asset.serialNumber) === normalizedSerial) {
+        return { employeeId: employee.id, asset };
+      }
+    }
+  }
+
+  return null;
+}
+
+function normalizeSerial(serialNumber) {
+  return String(serialNumber || "").trim().toLowerCase();
 }
 
 function getAssetInventory() {
@@ -1048,7 +1262,18 @@ function openAssetDetails(equipmentName) {
               <div>
                 ${
                   unit.status === ASSET_STATUS.RETURNED
-                    ? '<span class="not-issued">Not issued</span>'
+                    ? `<div class="asset-detail-actions">
+                        <span class="not-issued">Not issued</span>
+                        <button
+                          class="table-action success"
+                          type="button"
+                          data-action="issue-asset"
+                          data-employee-id="${unit.employeeId}"
+                          data-asset-id="${unit.id}"
+                        >
+                          Issue
+                        </button>
+                      </div>`
                     : `<button class="table-action" type="button" data-action="view-profile" data-employee-id="${unit.employeeId}">${escapeHtml(unit.employeeName)} (${escapeHtml(unit.employeeNumber)})</button>`
                 }
               </div>

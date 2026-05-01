@@ -738,15 +738,21 @@ address {
 }
 
 .profile-assets-table {
-  min-width: 820px;
+  min-width: 0;
+  font-size: 0.84rem;
+}
+
+.profile-assets-table th,
+.profile-assets-table td {
+  padding: 10px 9px;
 }
 
 .profile-assets-table select {
-  min-width: 150px;
+  min-width: 116px;
 }
 
 .condition-select {
-  min-width: 150px;
+  min-width: 116px;
 }
 
 .asset-card h4 {

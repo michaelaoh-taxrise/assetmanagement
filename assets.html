@@ -122,6 +122,61 @@
       </article>
     </dialog>
 
+    <dialog id="issueAssetDialog" class="modal">
+      <form id="issueAssetForm" method="dialog" class="modal-panel narrow">
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">Issue asset</p>
+            <h3 id="issueAssetTitle">Issue equipment</h3>
+          </div>
+          <button class="icon-button" type="button" data-close-dialog="issueAssetDialog" aria-label="Close">
+            &times;
+          </button>
+        </div>
+        <input type="hidden" name="sourceEmployeeId" />
+        <input type="hidden" name="assetId" />
+        <label>
+          Issue To
+          <select name="issueMode" required>
+            <option value="existing">Existing employee</option>
+            <option value="new">Create new employee</option>
+          </select>
+        </label>
+        <label data-issue-field="existing">
+          Existing Employee
+          <select id="issueExistingEmployee" name="targetEmployeeId"></select>
+        </label>
+        <div data-issue-field="new" hidden>
+          <div class="form-grid">
+            <label>
+              Employee ID
+              <input name="newEmployeeId" placeholder="e.g. TR-1024" />
+            </label>
+            <label>
+              Full Name
+              <input name="newFullName" placeholder="First Last" />
+            </label>
+            <label>
+              Work Location
+              <select name="newWorkLocation">
+                <option value="">Select location</option>
+                <option value="CA">CA</option>
+                <option value="TX">TX</option>
+                <option value="FL">FL</option>
+              </select>
+            </label>
+          </div>
+        </div>
+        <p class="helper-text">
+          Issuing this asset moves the existing serial-number record to the selected employee and marks it issued.
+        </p>
+        <div class="modal-actions">
+          <button class="secondary-button" type="button" data-close-dialog="issueAssetDialog">Cancel</button>
+          <button class="primary-button" type="submit">Issue Asset</button>
+        </div>
+      </form>
+    </dialog>
+
     <dialog id="employeeDialog" class="modal">
       <form id="employeeForm" method="dialog" class="modal-panel">
         <div class="modal-header">
