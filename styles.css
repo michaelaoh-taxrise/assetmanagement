@@ -367,6 +367,10 @@ table {
   border-collapse: collapse;
 }
 
+.profile-assets-table {
+  min-width: 720px;
+}
+
 th,
 td {
   padding: 16px 24px;
@@ -433,7 +437,8 @@ td {
 
 .delivery-pill,
 .asset-status-pill,
-.assignee-pill {
+.assignee-pill,
+.condition-pill {
   display: inline-flex;
   align-items: center;
   width: max-content;
@@ -445,17 +450,21 @@ td {
 }
 
 .delivery-pill.delivered,
-.asset-status-pill.issued {
+.asset-status-pill.issued,
+.condition-pill.excellent,
+.condition-pill.good {
   background: #e9f8f2;
   color: #10845f;
 }
 
-.delivery-pill.on-the-way {
+.delivery-pill.on-the-way,
+.condition-pill.fair {
   background: var(--brand-soft);
   color: var(--brand-dark);
 }
 
-.delivery-pill.pending-pickup {
+.delivery-pill.pending-pickup,
+.condition-pill.poor {
   background: #fff5e8;
   color: #9a5b00;
 }
@@ -723,6 +732,23 @@ address {
   gap: 14px;
 }
 
+.profile-assets-wrap {
+  overflow-x: auto;
+  margin-top: 12px;
+}
+
+.profile-assets-table {
+  min-width: 820px;
+}
+
+.profile-assets-table select {
+  min-width: 150px;
+}
+
+.condition-select {
+  min-width: 150px;
+}
+
 .asset-card h4 {
   margin: 0 0 8px;
 }
@@ -796,6 +822,15 @@ address {
 }
 
 .inventory-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  margin: 0 56px 20px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #fbfdff;
   color: var(--muted);
   font-size: 0.9rem;
 }

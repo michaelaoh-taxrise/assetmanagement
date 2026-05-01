@@ -4,6 +4,7 @@ const ASSET_STATUS = {
   RETURNED: "returned",
 };
 const TRACKING_STATUSES = ["Pending pickup", "On the way", "Delivered"];
+const RETURN_CONDITIONS = ["Excellent", "Good", "Fair", "Poor"];
 const createId = () =>
   globalThis.crypto?.randomUUID?.() ?? `id-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
@@ -28,6 +29,7 @@ const seedEmployees = [
         unitPrice: 2199,
         quantity: 1,
         status: ASSET_STATUS.ISSUED,
+        returnCondition: "",
       },
       {
         id: createId(),
@@ -36,6 +38,7 @@ const seedEmployees = [
         unitPrice: 429,
         quantity: 2,
         status: ASSET_STATUS.ISSUED,
+        returnCondition: "",
       },
     ],
     status: "active",
@@ -64,6 +67,7 @@ const seedEmployees = [
         unitPrice: 1650,
         quantity: 1,
         status: ASSET_STATUS.ISSUED,
+        returnCondition: "",
       },
     ],
     status: "pending-return",
@@ -217,6 +221,10 @@ document.addEventListener("change", (event) => {
     saveEmployees();
     render();
   }
+
+  if (input.matches("[data-action='update-return-condition']")) {
+    updateReturnCondition(input.dataset.employeeId, input.dataset.assetId, input.value);
+  }
 });
 
 [employeeDialog, profileDialog, returnDialog, assetDetailsDialog].filter(Boolean).forEach((dialog) => {
@@ -266,6 +274,7 @@ function normalizeEmployee(employee) {
           ...asset,
           id: asset.id || createId(),
           status: asset.status || ASSET_STATUS.ISSUED,
+          returnCondition: asset.returnCondition || "",
         }))
       : [],
   };
@@ -425,7 +434,6 @@ function renderCompanyAssets(inventoryItems) {
     row.innerHTML = `
       <td><strong>${escapeHtml(item.equipmentName)}</strong></td>
       <td>${item.quantityIssued}</td>
-      <td>${item.quantityAvailable}</td>
       <td>
         <button
           class="table-action"
@@ -679,36 +687,70 @@ function openProfileModal(employeeId) {
     </div>
     <section>
       <h3>Assigned Assets (${getAssetQuantity(employee)})</h3>
-      <div class="asset-cards">
-        ${employee.assets
-          .map(
-            (asset) => `
-              <article class="asset-card">
-                <h4>${escapeHtml(asset.equipmentName)}</h4>
-                <p>Serial: ${escapeHtml(asset.serialNumber || "N/A")}</p>
-                <div>
-                  <span>${formatCurrency(Number(asset.unitPrice))} each</span>
-                  <strong>Qty ${Number(asset.quantity)}</strong>
-                </div>
-                <div class="asset-status-controls">
-                  <span class="asset-status-pill ${asset.status === ASSET_STATUS.RETURNED ? "returned" : "issued"}">
-                    ${asset.status === ASSET_STATUS.RETURNED ? "Returned" : "Issued"}
-                  </span>
-                  <button
-                    class="table-action ${asset.status === ASSET_STATUS.RETURNED ? "" : "success"}"
-                    type="button"
-                    data-action="update-asset-status"
-                    data-employee-id="${employee.id}"
-                    data-asset-id="${asset.id}"
-                    data-asset-status="${asset.status === ASSET_STATUS.RETURNED ? ASSET_STATUS.ISSUED : ASSET_STATUS.RETURNED}"
-                  >
-                    Mark ${asset.status === ASSET_STATUS.RETURNED ? "Issued" : "Returned"}
-                  </button>
-                </div>
-              </article>
-            `,
-          )
-          .join("")}
+      <div class="profile-assets-wrap">
+        <table class="profile-assets-table">
+          <thead>
+            <tr>
+              <th>Equipment</th>
+              <th>Serial Number</th>
+              <th>Unit Price</th>
+              <th>Quantity</th>
+              <th>Status</th>
+              <th>Return Condition</th>
+              <th>Update</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${employee.assets
+              .map(
+                (asset) => `
+                  <tr>
+                    <td><strong>${escapeHtml(asset.equipmentName)}</strong></td>
+                    <td>${escapeHtml(asset.serialNumber || "N/A")}</td>
+                    <td>${formatCurrency(Number(asset.unitPrice))}</td>
+                    <td>${Number(asset.quantity)}</td>
+                    <td>
+                      <span class="asset-status-pill ${asset.status === ASSET_STATUS.RETURNED ? "returned" : "issued"}">
+                        ${asset.status === ASSET_STATUS.RETURNED ? "Returned" : "Issued"}
+                      </span>
+                    </td>
+                    <td>
+                      ${
+                        asset.status === ASSET_STATUS.RETURNED
+                          ? `<select
+                              class="condition-select"
+                              data-action="update-return-condition"
+                              data-employee-id="${employee.id}"
+                              data-asset-id="${asset.id}"
+                              aria-label="Return condition for ${escapeAttribute(asset.equipmentName)}"
+                            >
+                              <option value="">Select condition</option>
+                              ${RETURN_CONDITIONS.map(
+                                (condition) =>
+                                  `<option value="${escapeAttribute(condition)}" ${asset.returnCondition === condition ? "selected" : ""}>${escapeHtml(condition)}</option>`,
+                              ).join("")}
+                            </select>`
+                          : '<span class="condition-pill">Not returned</span>'
+                      }
+                    </td>
+                    <td>
+                      <button
+                        class="table-action ${asset.status === ASSET_STATUS.RETURNED ? "" : "success"}"
+                        type="button"
+                        data-action="update-asset-status"
+                        data-employee-id="${employee.id}"
+                        data-asset-id="${asset.id}"
+                        data-asset-status="${asset.status === ASSET_STATUS.RETURNED ? ASSET_STATUS.ISSUED : ASSET_STATUS.RETURNED}"
+                      >
+                        Mark ${asset.status === ASSET_STATUS.RETURNED ? "Issued" : "Returned"}
+                      </button>
+                    </td>
+                  </tr>
+                `,
+              )
+              .join("")}
+          </tbody>
+        </table>
       </div>
     </section>
     <div class="profile-actions">
@@ -942,6 +984,7 @@ function filterInventory(inventoryItems) {
         unit.unitPrice,
         unit.quantity,
         unit.status,
+      unit.returnCondition,
         unit.employeeName,
         unit.employeeNumber,
       ]),
