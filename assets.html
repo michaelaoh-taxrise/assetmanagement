@@ -14,7 +14,7 @@
   </head>
   <body data-page="assets">
     <div class="app-shell">
-      <aside class="sidebar" aria-label="Application sidebar">
+      <header class="top-header" aria-label="Application header">
         <div class="brand">
           <div class="brand-logo" aria-hidden="true">
             <svg viewBox="0 0 100 100" role="img">
@@ -28,17 +28,21 @@
           </div>
         </div>
         <nav class="side-nav" aria-label="Primary">
-          <a href="index.html#welcome">Homebase</a>
+          <a href="index.html#welcome">Home</a>
           <a href="index.html#employees-with-assets">Employees With Assets</a>
           <a href="index.html#assets-pending-return">Assets Pending Return</a>
           <a href="assets.html" class="active">Assets</a>
           <a href="archive.html">Archive</a>
         </nav>
-        <div class="sidebar-card">
-          <span class="status-dot"></span>
-          <p>Company inventory is calculated from saved asset profiles.</p>
+        <div class="header-search">
+          <input
+            id="searchInput"
+            type="search"
+            placeholder="Search assets, employees, serials, tracking..."
+          />
+          <button class="secondary-button compact" id="clearSearch" type="button">Clear</button>
         </div>
-      </aside>
+      </header>
 
       <main class="main-content">
         <section class="hero-card">
@@ -50,7 +54,7 @@
               returned units available for reassignment.
             </p>
           </div>
-          <a class="secondary-button" href="index.html#welcome">Back to command center</a>
+          <a class="secondary-button" href="index.html#welcome">Back to Home</a>
         </section>
 
         <section class="stats-grid" aria-label="Company asset summary">
@@ -66,18 +70,6 @@
             <span id="companyAvailableCount">0</span>
             <p>Assets available</p>
           </article>
-        </section>
-
-        <section class="search-card" aria-label="Search company assets">
-          <label for="searchInput">Search assets</label>
-          <div class="search-row">
-            <input
-              id="searchInput"
-              type="search"
-              placeholder="Search by equipment, serial number, employee, status, price..."
-            />
-            <button class="secondary-button" id="clearSearch" type="button">Clear</button>
-          </div>
         </section>
 
         <section id="assets" class="table-card">
@@ -150,11 +142,11 @@
           <div class="form-grid">
             <label>
               Employee ID
-              <input name="newEmployeeId" placeholder="e.g. TR-1024" />
+              <input name="newEmployeeId" placeholder="e.g. 19900" />
             </label>
             <label>
               Full Name
-              <input name="newFullName" placeholder="First Last" />
+              <input name="newFullName" placeholder="e.g. John Doe" />
             </label>
             <label>
               Work Location
@@ -192,11 +184,11 @@
         <div class="form-grid">
           <label>
             Employee ID
-            <input name="employeeId" required placeholder="e.g. TR-1024" />
+            <input name="employeeId" required placeholder="e.g. 19900" />
           </label>
           <label>
             Full Name
-            <input name="fullName" required placeholder="First Last" />
+            <input name="fullName" required placeholder="e.g. John Doe" />
           </label>
           <label>
             Work Location
@@ -244,6 +236,9 @@
         </fieldset>
 
         <div class="modal-actions">
+          <button class="secondary-button destructive-button" id="deleteEmployeeFromEdit" type="button" hidden>
+            Delete Employee
+          </button>
           <button class="secondary-button" type="button" data-close-dialog="employeeDialog">Cancel</button>
           <button class="primary-button" id="employeeSubmitButton" type="submit">
             Save Profile Updates

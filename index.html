@@ -13,38 +13,43 @@
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <div class="app-shell">
-      <aside class="sidebar" aria-label="Application sidebar">
-        <div class="brand">
-          <div class="brand-logo" aria-hidden="true">
-            <svg viewBox="0 0 100 100" role="img">
-              <circle cx="50" cy="50" r="50" fill="#126fa6" />
-              <text x="50" y="72" text-anchor="middle">tr</text>
-            </svg>
-          </div>
-          <div>
-            <p class="eyebrow">TaxRise</p>
-            <h1>Asset Hub</h1>
-          </div>
+    <header class="top-header" aria-label="Application header">
+      <div class="brand">
+        <div class="brand-logo" aria-hidden="true">
+          <svg viewBox="0 0 100 100" role="img">
+            <circle cx="50" cy="50" r="50" fill="#126fa6" />
+            <text x="50" y="72" text-anchor="middle">tr</text>
+          </svg>
         </div>
-        <nav class="side-nav" aria-label="Primary">
-          <a href="#welcome" class="active">Homebase</a>
-          <a href="#employees-with-assets">Employees With Assets</a>
-          <a href="#assets-pending-return">Assets Pending Return</a>
-          <a href="assets.html">Assets</a>
-          <a href="archive.html">Archive</a>
-        </nav>
-        <div class="sidebar-card">
-          <span class="status-dot"></span>
-          <p>Equipment lending records are saved to this browser.</p>
+        <div>
+          <p class="eyebrow">TaxRise</p>
+          <h1>Asset Hub</h1>
         </div>
-      </aside>
+      </div>
+      <nav class="side-nav" aria-label="Primary">
+        <a href="#welcome" class="active">Home</a>
+        <a href="#employees-with-assets">Employees With Assets</a>
+        <a href="#assets-pending-return">Assets Pending Return</a>
+        <a href="assets.html">Assets</a>
+        <a href="archive.html">Archive</a>
+      </nav>
+      <div class="header-search">
+        <input
+          id="searchInput"
+          type="search"
+          placeholder="Search assets, employees, serials, tracking..."
+          aria-label="Search asset records"
+        />
+        <button class="secondary-button compact" id="clearSearch" type="button">Clear</button>
+      </div>
+    </header>
 
+    <div class="app-shell">
       <main class="main-content" id="homeView">
         <section id="welcome" class="hero-card">
           <div>
-            <p class="eyebrow">Company equipment command center</p>
-            <h2>Welcome to your TaxRise asset management homebase.</h2>
+            <p class="eyebrow">TaxRise asset management homebase</p>
+            <h2>Welcome!</h2>
             <p>
               Track equipment assigned to active employees, create asset profiles, and manage returns
               for terminated employees in one place.
@@ -73,16 +78,6 @@
             <span id="overdueCount">0</span>
             <p>Overdue returns</p>
           </article>
-        </section>
-
-        <section class="search-card" aria-label="Search asset records">
-          <label for="searchInput">Search command center</label>
-          <input
-            id="searchInput"
-            type="search"
-            placeholder="Search by asset, employee name, employee ID, location, serial number, tracking..."
-          />
-          <button class="secondary-button compact" id="clearSearch" type="button">Clear</button>
         </section>
 
         <section id="employees-with-assets" class="table-card">
@@ -160,11 +155,11 @@
         <div class="form-grid">
           <label>
             Employee ID
-            <input name="employeeId" required placeholder="e.g. TR-1024" />
+            <input name="employeeId" required placeholder="e.g. 19900" />
           </label>
           <label>
             Full Name
-            <input name="fullName" required placeholder="First Last" />
+            <input name="fullName" required placeholder="e.g. John Doe" />
           </label>
           <label>
             Work Location
@@ -212,6 +207,9 @@
         </fieldset>
 
         <div class="modal-actions">
+          <button class="secondary-button destructive-button" id="deleteEmployeeFromEdit" type="button" hidden>
+            Delete Employee
+          </button>
           <button class="secondary-button" type="button" data-close-dialog="employeeDialog">Cancel</button>
           <button class="primary-button" id="employeeSubmitButton" type="submit">
             Generate Full Asset Profile

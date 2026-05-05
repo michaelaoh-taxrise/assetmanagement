@@ -41,21 +41,22 @@ button {
 
 .app-shell {
   display: grid;
-  grid-template-columns: 280px minmax(0, 1fr);
   gap: 28px;
   width: min(1380px, calc(100% - 32px));
   margin: 0 auto;
-  padding: 32px 0 48px;
+  padding: 24px 0 48px;
 }
 
-.sidebar {
-  position: sticky;
-  top: 32px;
-  align-self: start;
-  min-height: calc(100vh - 64px);
-  padding: 24px;
+.top-header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) minmax(260px, 360px);
+  gap: 20px;
+  align-items: center;
+  width: min(1380px, calc(100% - 32px));
+  margin: 32px auto 0;
+  padding: 18px 22px;
   border: 1px solid rgba(255, 255, 255, 0.75);
-  border-radius: 28px;
+  border-radius: 24px;
   background: rgba(255, 255, 255, 0.8);
   box-shadow: var(--shadow);
 }
@@ -64,7 +65,6 @@ button {
   display: flex;
   gap: 14px;
   align-items: center;
-  margin-bottom: 32px;
 }
 
 .brand-logo {
@@ -115,8 +115,10 @@ p {
 }
 
 .side-nav {
-  display: grid;
+  display: flex;
+  flex-wrap: wrap;
   gap: 8px;
+  justify-content: center;
 }
 
 .side-nav a {
@@ -137,31 +139,14 @@ p {
   display: none;
 }
 
-.sidebar-card {
+.header-search {
   display: flex;
-  gap: 10px;
-  align-items: flex-start;
-  margin-top: 32px;
-  padding: 14px;
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  background: #fbfdff;
-  color: var(--muted);
-  font-size: 0.9rem;
+  gap: 8px;
+  align-items: center;
 }
 
-.sidebar-card p {
-  margin: 0;
-}
-
-.status-dot {
-  flex: 0 0 auto;
-  width: 10px;
-  height: 10px;
-  margin-top: 5px;
-  border-radius: 50%;
-  background: #14a06f;
-  box-shadow: 0 0 0 5px rgba(20, 160, 111, 0.12);
+.header-search input {
+  min-height: 40px;
 }
 
 .main-content {
@@ -312,7 +297,7 @@ p {
 }
 
 .search-card {
-  display: grid;
+  display: none;
   gap: 10px;
   padding: 22px 24px;
   border: 1px solid var(--line);
@@ -363,7 +348,7 @@ p {
 
 table {
   width: 100%;
-  min-width: 860px;
+  min-width: 760px;
   border-collapse: collapse;
 }
 
@@ -507,7 +492,7 @@ td {
 }
 
 .modal-panel.narrow {
-  width: min(580px, 100%);
+  width: min(640px, 100%);
 }
 
 .profile-panel {
@@ -540,6 +525,10 @@ td {
 #editEmployeeForm > .form-grid,
 #editEmployeeForm > fieldset,
 #editEmployeeForm > .modal-actions,
+#issueAssetForm > label,
+#issueAssetForm > [data-issue-field],
+#issueAssetForm > .helper-text,
+#issueAssetForm > .modal-actions,
 #returnForm > label,
 #returnForm > .helper-text,
 #returnForm > .modal-actions {
@@ -618,7 +607,13 @@ select:focus {
 }
 
 .remove-asset {
+  width: 40px;
+  min-width: 40px;
+  height: 40px;
+  padding: 0;
   color: var(--danger);
+  font-size: 1.2rem;
+  font-weight: 900;
 }
 
 .modal-actions {
@@ -909,13 +904,13 @@ address {
     grid-template-columns: 1fr;
   }
 
-  .sidebar {
-    position: static;
-    min-height: 0;
+  .top-header {
+    grid-template-columns: 1fr;
   }
 
   .side-nav {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+    justify-content: flex-start;
   }
 
   .stats-grid {
@@ -954,6 +949,10 @@ address {
   #employeeForm > .form-grid,
   #employeeForm > fieldset,
   #employeeForm > .modal-actions,
+  #issueAssetForm > label,
+  #issueAssetForm > [data-issue-field],
+  #issueAssetForm > .helper-text,
+  #issueAssetForm > .modal-actions,
   #returnForm > label,
   #returnForm > .helper-text,
   #returnForm > .modal-actions {

@@ -92,6 +92,7 @@ const employeeDialogTitle = document.querySelector("#employeeDialogTitle");
 const employeeDialogEyebrow = document.querySelector("#employeeDialogEyebrow");
 const employeeForm = document.querySelector("#employeeForm");
 const employeeSubmitButton = document.querySelector("#employeeSubmitButton");
+const deleteEmployeeFromEditButton = document.querySelector("#deleteEmployeeFromEdit");
 const assetRows = document.querySelector("#assetRows");
 const addAssetRowButton = document.querySelector("#addAssetRow");
 const searchInput = document.querySelector("#searchInput");
@@ -125,6 +126,7 @@ const issueAssetDialog = document.querySelector("#issueAssetDialog");
 const issueAssetForm = document.querySelector("#issueAssetForm");
 const issueAssetTitle = document.querySelector("#issueAssetTitle");
 const issueExistingEmployee = document.querySelector("#issueExistingEmployee");
+const issueModeSelect = issueAssetForm?.elements.issueMode;
 const returnDialog = document.querySelector("#returnDialog");
 const returnEmployeeName = document.querySelector("#returnEmployeeName");
 const returnForm = document.querySelector("#returnForm");
@@ -139,6 +141,13 @@ addAssetRowButton.addEventListener("click", () => addAssetRow());
 employeeForm.addEventListener("submit", handleEmployeeSubmit);
 returnForm?.addEventListener("submit", handleReturnSubmit);
 issueAssetForm?.addEventListener("submit", handleIssueAssetSubmit);
+employeeForm.elements.workLocation.addEventListener("change", handleWorkLocationChange);
+deleteEmployeeFromEditButton?.addEventListener("click", () => {
+  if (editingEmployeeId) {
+    deleteEmployee(editingEmployeeId);
+    employeeDialog.close();
+  }
+});
 searchInput?.addEventListener("input", (event) => {
   searchTerm = event.target.value.trim().toLowerCase();
   render();
@@ -214,7 +223,6 @@ document.addEventListener("input", (event) => {
 
   employee.trackingNumber = input.value.trim();
   saveEmployees();
-  render();
 });
 
 document.addEventListener("change", (event) => {
@@ -509,6 +517,10 @@ function openEmployeeDialog(employeeId = null) {
   employeeDialogEyebrow.textContent = employee ? "Edit asset profile" : "New asset profile";
   employeeDialogTitle.textContent = employee ? "Edit Employee Profile" : "Add New Employee";
   employeeSubmitButton.textContent = employee ? "Save Profile Updates" : "Generate Full Asset Profile";
+  if (deleteEmployeeFromEditButton) {
+    deleteEmployeeFromEditButton.hidden = !employee;
+    deleteEmployeeFromEditButton.dataset.employeeId = employee?.id || "";
+  }
 
   if (employee) {
     employeeForm.elements.employeeId.value = employee.employeeId;
@@ -548,17 +560,10 @@ function addAssetRow(asset = {}) {
       <span>Quantity</span>
       <input name="quantity" required min="1" step="1" type="number" value="${asset.quantity || 1}" />
     </label>
-    <label>
-      <span>Status</span>
-      <select name="assetStatus" required>
-        <option value="${ASSET_STATUS.ISSUED}" ${(asset.status || ASSET_STATUS.ISSUED) === ASSET_STATUS.ISSUED ? "selected" : ""}>Issued</option>
-        <option value="${ASSET_STATUS.RETURNED}" ${asset.status === ASSET_STATUS.RETURNED ? "selected" : ""}>Returned</option>
-      </select>
-    </label>
-    <button class="icon-button remove-asset" type="button" aria-label="Remove asset">Remove</button>
+    <button class="remove-asset-x" type="button" aria-label="Remove asset">&times;</button>
   `;
 
-  row.querySelector(".remove-asset").addEventListener("click", () => {
+  row.querySelector(".remove-asset-x").addEventListener("click", () => {
     if (assetRows.children.length === 1) {
       showToast("At least one asset is required.");
       return;
@@ -588,11 +593,16 @@ function handleEmployeeSubmit(event) {
     return;
   }
 
+  const matchedAssetIds = new Set();
   const assetRowElements = [...assetRows.querySelectorAll(".asset-row")];
   const assets = assetRowElements.map((row, index) => {
     const previousAsset = existingEmployee?.assets[index];
     const serialNumber = row.querySelector("[name='serialNumber']").value.trim();
     const matchedAsset = previousAsset ? null : findAvailableAssetBySerial(serialNumber);
+
+    if (matchedAsset) {
+      matchedAssetIds.add(matchedAsset.asset.id);
+    }
 
     return {
       id: previousAsset?.id || matchedAsset?.asset.id || createId(),
@@ -600,16 +610,12 @@ function handleEmployeeSubmit(event) {
       serialNumber,
       unitPrice: Number(row.querySelector("[name='unitPrice']").value),
       quantity: Number(row.querySelector("[name='quantity']").value),
-      status: row.querySelector("[name='assetStatus']").value,
+      status: previousAsset?.status || ASSET_STATUS.ISSUED,
       returnCondition: previousAsset?.returnCondition || matchedAsset?.asset.returnCondition || "",
     };
   });
 
-  assets.forEach((asset) => {
-    if (!existingEmployee) {
-      detachAssetById(asset.id);
-    }
-  });
+  matchedAssetIds.forEach((assetId) => detachAssetById(assetId));
 
   const updatedEmployee = {
     id: existingEmployee?.id || createId(),
@@ -779,7 +785,7 @@ function openProfileModal(employeeId) {
     <div class="profile-actions">
       <div>
         <h3>Profile Actions</h3>
-        <p>Edit this profile, archive returned equipment, or delete the employee record entirely.</p>
+        <p>Edit this profile or archive returned equipment.</p>
       </div>
       <div class="profile-action-buttons">
         <button class="secondary-button" type="button" data-action="edit-employee" data-employee-id="${employee.id}">
@@ -790,9 +796,6 @@ function openProfileModal(employeeId) {
             ? `<button class="secondary-button success-button" type="button" data-action="archive-employee" data-employee-id="${employee.id}">Archive Returned</button>`
             : ""
         }
-        <button class="secondary-button destructive-button" type="button" data-action="delete-employee" data-employee-id="${employee.id}">
-          Delete Employee
-        </button>
       </div>
     </div>
   `;
@@ -1138,6 +1141,20 @@ function findAvailableAssetBySerial(serialNumber) {
 
 function normalizeSerial(serialNumber) {
   return String(serialNumber || "").trim().toLowerCase();
+}
+
+function handleWorkLocationChange() {
+  if (employeeForm.elements.workLocation.value === "CA") {
+    fillCompanyAddress();
+  }
+}
+
+function fillCompanyAddress() {
+  employeeForm.elements.address1.value = "19900 MacArthur Blvd";
+  employeeForm.elements.address2.value = "400";
+  employeeForm.elements.city.value = "Irvine";
+  employeeForm.elements.state.value = "CA";
+  employeeForm.elements.zipCode.value = "92612";
 }
 
 function getAssetInventory() {
