@@ -373,6 +373,39 @@ th {
   text-transform: uppercase;
 }
 
+.sort-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-align: left;
+  text-transform: inherit;
+}
+
+.sort-button::after {
+  color: #9aa8bb;
+  content: "↕";
+  font-size: 0.78rem;
+  letter-spacing: 0;
+}
+
+.sort-button.is-active {
+  color: var(--brand-dark);
+}
+
+.sort-button.is-active[data-sort-direction="asc"]::after {
+  content: "↑";
+}
+
+.sort-button.is-active[data-sort-direction="desc"]::after {
+  content: "↓";
+}
+
 td {
   color: #26344b;
 }

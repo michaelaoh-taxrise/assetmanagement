@@ -84,6 +84,12 @@ let selectedEmployeeId = null;
 let editingEmployeeId = null;
 let assetToIssue = null;
 let searchTerm = "";
+const sortState = {
+  active: { key: "employeeId", direction: "asc" },
+  pending: { key: "returnDueDate", direction: "asc" },
+  archive: { key: "archivedDate", direction: "desc" },
+  assets: { key: "equipmentName", direction: "asc" },
+};
 
 const openEmployeeFormButton = document.querySelector("#openEmployeeForm");
 const openEmployeeFormSecondaryButton = document.querySelector("#openEmployeeFormSecondary");
@@ -162,6 +168,12 @@ clearSearchButton?.addEventListener("click", () => {
 document.querySelectorAll("[data-close-dialog]").forEach((button) => {
   button.addEventListener("click", () => {
     document.querySelector(`#${button.dataset.closeDialog}`).close();
+  });
+});
+
+document.querySelectorAll("[data-sort-table]").forEach((button) => {
+  button.addEventListener("click", () => {
+    updateSort(button.dataset.sortTable, button.dataset.sortKey);
   });
 });
 
@@ -320,6 +332,7 @@ function render() {
     companyIssuedCount.textContent = String(totals.issued);
     companyAvailableCount.textContent = String(totals.available);
     renderCompanyAssets(filteredInventory);
+    updateSortIndicators();
     return;
   }
 
@@ -327,6 +340,7 @@ function render() {
     archivedEmployeeCount.textContent = String(archivedEmployees.length);
     archivedAssetCount.textContent = String(getTotalAssetQuantity(archivedEmployees));
     renderArchivedEmployees(filterEmployees(archivedEmployees));
+    updateSortIndicators();
     return;
   }
 
@@ -337,6 +351,7 @@ function render() {
 
   renderActiveEmployees(filterEmployees(activeEmployees));
   renderPendingEmployees(filterEmployees(pendingEmployees));
+  updateSortIndicators();
 }
 
 function renderActiveEmployees(activeEmployees) {
@@ -350,7 +365,7 @@ function renderActiveEmployees(activeEmployees) {
     ? "No active employees match your search."
     : "No active asset assignments yet. Add a new employee to get started.";
 
-  activeEmployees.forEach((employee) => {
+  sortEmployees(activeEmployees, sortState.active).forEach((employee) => {
     const row = document.createElement("tr");
     row.innerHTML = `
       <td><strong>${escapeHtml(employee.employeeId)}</strong></td>
@@ -383,7 +398,7 @@ function renderPendingEmployees(pendingEmployees) {
     ? "No pending returns match your search."
     : "No employees are currently pending asset returns.";
 
-  pendingEmployees.forEach((employee) => {
+  sortEmployees(pendingEmployees, sortState.pending).forEach((employee) => {
     const isOverdue = isPastDue(employee.returnDueDate);
     const row = document.createElement("tr");
     row.innerHTML = `
@@ -422,7 +437,7 @@ function renderArchivedEmployees(archivedEmployees) {
     ? "No archived employees match your search."
     : "No returned asset profiles have been archived yet.";
 
-  archivedEmployees.forEach((employee) => {
+  sortEmployees(archivedEmployees, sortState.archive).forEach((employee) => {
     const row = document.createElement("tr");
     row.innerHTML = `
       <td><strong>${escapeHtml(employee.employeeId)}</strong></td>
@@ -451,7 +466,7 @@ function renderCompanyAssets(inventoryItems) {
     ? "No company assets match your search."
     : "No company assets have been added yet.";
 
-  inventoryItems.forEach((item) => {
+  sortInventory(inventoryItems, sortState.assets).forEach((item) => {
     const row = document.createElement("tr");
     row.innerHTML = `
       <td><strong>${escapeHtml(item.equipmentName)}</strong></td>
