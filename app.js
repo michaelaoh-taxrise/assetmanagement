@@ -594,17 +594,18 @@ function handleEmployeeSubmit(event) {
   event.preventDefault();
   const formData = new FormData(employeeForm);
   const employeeId = String(formData.get("employeeId")).trim();
+  const normalizedEmployeeId = normalizeIdentifier(employeeId);
   const existingEmployee = editingEmployeeId
     ? employees.find((employee) => employee.id === editingEmployeeId)
     : null;
 
-  const duplicateEmployeeId = employees.some(
+  const duplicateEmployee = employees.find(
     (employee) =>
-      employee.id !== editingEmployeeId && employee.employeeId.toLowerCase() === employeeId.toLowerCase(),
+      employee.id !== editingEmployeeId && normalizeIdentifier(employee.employeeId) === normalizedEmployeeId,
   );
 
-  if (duplicateEmployeeId) {
-    showToast("That employee ID already exists.");
+  if (duplicateEmployee) {
+    showToast(`That employee ID is already used by ${duplicateEmployee.fullName}.`);
     return;
   }
 
@@ -660,6 +661,10 @@ function handleEmployeeSubmit(event) {
   }
 
   saveEmployees();
+  searchTerm = "";
+  if (searchInput) {
+    searchInput.value = "";
+  }
   render();
   employeeDialog.close();
   editingEmployeeId = null;
@@ -1156,6 +1161,10 @@ function findAvailableAssetBySerial(serialNumber) {
 
 function normalizeSerial(serialNumber) {
   return String(serialNumber || "").trim().toLowerCase();
+}
+
+function normalizeIdentifier(value) {
+  return String(value || "").trim().replace(/\s+/g, "").toLowerCase();
 }
 
 function handleWorkLocationChange() {
