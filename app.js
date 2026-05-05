@@ -1327,6 +1327,87 @@ function openAssetDetails(equipmentName) {
   assetDetailsDialog.showModal();
 }
 
+function updateSort(tableName, key) {
+  const currentSort = sortState[tableName];
+
+  if (!currentSort) {
+    return;
+  }
+
+  sortState[tableName] = {
+    key,
+    direction: currentSort.key === key && currentSort.direction === "asc" ? "desc" : "asc",
+  };
+  render();
+}
+
+function sortEmployees(employeeList, sortConfig) {
+  return [...employeeList].sort((firstEmployee, secondEmployee) =>
+    compareSortValues(
+      getEmployeeSortValue(firstEmployee, sortConfig.key),
+      getEmployeeSortValue(secondEmployee, sortConfig.key),
+      sortConfig.direction,
+    ),
+  );
+}
+
+function sortInventory(inventoryItems, sortConfig) {
+  return [...inventoryItems].sort((firstItem, secondItem) =>
+    compareSortValues(
+      getInventorySortValue(firstItem, sortConfig.key),
+      getInventorySortValue(secondItem, sortConfig.key),
+      sortConfig.direction,
+    ),
+  );
+}
+
+function getEmployeeSortValue(employee, key) {
+  if (key === "assetCount") {
+    return getIssuedAssetQuantity([employee]);
+  }
+
+  if (key === "archivedDate" || key === "returnDueDate") {
+    return employee[key] ? new Date(`${employee[key]}T00:00:00`).getTime() : 0;
+  }
+
+  return employee[key] || "";
+}
+
+function getInventorySortValue(item, key) {
+  if (key === "quantityIssued") {
+    return Number(item.quantityIssued) || 0;
+  }
+
+  return item[key] || "";
+}
+
+function compareSortValues(firstValue, secondValue, direction) {
+  const directionMultiplier = direction === "asc" ? 1 : -1;
+
+  if (typeof firstValue === "number" && typeof secondValue === "number") {
+    return (firstValue - secondValue) * directionMultiplier;
+  }
+
+  return String(firstValue).localeCompare(String(secondValue), undefined, {
+    numeric: true,
+    sensitivity: "base",
+  }) * directionMultiplier;
+}
+
+function updateSortIndicators() {
+  document.querySelectorAll("[data-sort-table]").forEach((button) => {
+    const sortConfig = sortState[button.dataset.sortTable];
+    const isActive = sortConfig?.key === button.dataset.sortKey;
+
+    button.classList.toggle("is-active", isActive);
+    if (isActive) {
+      button.dataset.sortDirection = sortConfig.direction;
+    } else {
+      button.removeAttribute("data-sort-direction");
+    }
+  });
+}
+
 function addCalendarDays(dateValue, days) {
   const date = new Date(`${dateValue}T00:00:00`);
   date.setDate(date.getDate() + days);
