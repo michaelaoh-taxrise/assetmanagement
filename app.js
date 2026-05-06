@@ -1,4 +1,9 @@
 const STORAGE_KEY = "taxriseAssetManagementEmployees";
+const SUPABASE_REST_URL = "https://tmthetxswkapprsolkyr.supabase.co/rest/v1";
+const SUPABASE_API_KEY = "sb_publishable_0u99_tf_gvJfHVfb5A2Lkg_w9anjq0c";
+const SUPABASE_ASSETS_TABLE = "assets";
+const SUPABASE_ENABLED = true;
+const SUPABASE_ASSETS_URL = `${SUPABASE_REST_URL}/${SUPABASE_ASSETS_TABLE}`;
 const ASSET_STATUS = {
   ISSUED: "issued",
   RETURNED: "returned",
@@ -79,7 +84,9 @@ const seedEmployees = [
   },
 ];
 
-let employees = loadEmployees();
+let employees = [];
+let standaloneAssets = [];
+let isSupabaseBacked = false;
 let selectedEmployeeId = null;
 let editingEmployeeId = null;
 let assetToIssue = null;
@@ -269,7 +276,7 @@ document.addEventListener("change", (event) => {
   });
 });
 
-render();
+initializeData();
 
 function loadEmployees() {
   const savedEmployees = localStorage.getItem(STORAGE_KEY);
@@ -316,6 +323,188 @@ function normalizeEmployee(employee) {
 
 function saveEmployees() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(employees));
+}
+
+async function upsertAssetToSupabase(asset, employee = null) {
+  if (!isSupabaseBacked) {
+    return asset;
+  }
+
+  const payload = createSupabaseAssetPayload(asset, employee);
+
+  if (isSupabaseUuid(asset.id)) {
+    const response = await fetch(`${SUPABASE_ASSETS_URL}?id=eq.${encodeURIComponent(asset.id)}`, {
+      method: "PATCH",
+      headers: getSupabaseHeaders("return=minimal"),
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      throw new Error(await response.text());
+    }
+
+    return asset;
+  }
+
+  const response = await fetch(SUPABASE_ASSETS_URL, {
+    method: "POST",
+    headers: getSupabaseHeaders("return=representation"),
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error(await response.text());
+  }
+
+  const [createdRow] = await response.json();
+  return {
+    ...asset,
+    id: createdRow?.id || asset.id,
+  };
+}
+
+function createSupabaseAssetPayload(asset, employee = null) {
+  const isIssued = Boolean(employee) && asset.status !== ASSET_STATUS.RETURNED;
+
+  return {
+    serial_number: asset.serialNumber || null,
+    description: asset.equipmentName || null,
+    quantity: Number(asset.quantity) || 1,
+    unit_price: Number(asset.unitPrice) || 0,
+    condition: asset.returnCondition || null,
+    issue_status: isIssued ? "issued" : "available",
+    employee_id: isIssued ? employee.employeeId : null,
+    assigned_by: isIssued ? employee.fullName : null,
+    location: isIssued ? employee.workLocation : null,
+    issue_date: isIssued ? new Date().toISOString().slice(0, 10) : null,
+    return_date: isIssued ? null : asset.status === ASSET_STATUS.RETURNED ? new Date().toISOString().slice(0, 10) : null,
+    disposition: isIssued ? "active" : "available",
+  };
+}
+
+async function deleteAssetFromSupabase(assetId) {
+  if (!isSupabaseBacked || !isSupabaseUuid(assetId)) {
+    return;
+  }
+
+  const response = await fetch(`${SUPABASE_ASSETS_URL}?id=eq.${encodeURIComponent(assetId)}`, {
+    method: "DELETE",
+    headers: getSupabaseHeaders("return=minimal"),
+  });
+
+  if (!response.ok) {
+    throw new Error(await response.text());
+  }
+}
+
+function isSupabaseUuid(value) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(value || ""));
+}
+
+async function initializeData() {
+  if (!SUPABASE_ENABLED) {
+    employees = loadEmployees();
+    render();
+    return;
+  }
+
+  try {
+    const rows = await fetchSupabaseAssets();
+    const mapped = mapSupabaseAssets(rows);
+    employees = mapped.employees;
+    standaloneAssets = mapped.standaloneAssets;
+    isSupabaseBacked = true;
+  } catch (error) {
+    console.error("Unable to load Supabase assets.", error);
+    employees = loadEmployees();
+    standaloneAssets = [];
+    isSupabaseBacked = false;
+    showToast("Could not load Supabase records. Showing browser-saved data.");
+  }
+
+  render();
+}
+
+async function fetchSupabaseAssets() {
+  const response = await fetch(`${SUPABASE_ASSETS_URL}?select=*`, {
+    headers: getSupabaseHeaders(),
+  });
+
+  if (!response.ok) {
+    throw new Error(await response.text());
+  }
+
+  return response.json();
+}
+
+function mapSupabaseAssets(rows) {
+  const employeesById = new Map();
+  const unassignedAssets = [];
+
+  rows.forEach((row) => {
+    const asset = mapSupabaseRowToAsset(row);
+    const isIssued = String(row.issue_status || "").toLowerCase() === "issued" && row.employee_id;
+
+    if (!isIssued) {
+      unassignedAssets.push({ ...asset, status: ASSET_STATUS.RETURNED });
+      return;
+    }
+
+    const employeeId = String(row.employee_id);
+    const existingEmployee =
+      employeesById.get(employeeId) ||
+      createEmployeeFromSupabaseRow(row, employeeId);
+
+    existingEmployee.assets.push({ ...asset, status: ASSET_STATUS.ISSUED });
+    employeesById.set(employeeId, existingEmployee);
+  });
+
+  return {
+    employees: [...employeesById.values()],
+    standaloneAssets: unassignedAssets,
+  };
+}
+
+function createEmployeeFromSupabaseRow(row, employeeId) {
+  return {
+    id: `employee-${employeeId}`,
+    employeeId,
+    fullName: row.assigned_by || `Employee ${employeeId}`,
+    workLocation: row.location || "",
+    address: { address1: "", address2: "", city: "", state: "", zip: "" },
+    assets: [],
+    status: row.disposition === "archived" ? "archived" : "active",
+    terminationDate: "",
+    returnDueDate: row.return_date || "",
+    trackingNumber: "",
+    trackingStatus: "",
+    archivedDate: row.disposition === "archived" ? row.updated_at || row.return_date || "" : "",
+  };
+}
+
+function mapSupabaseRowToAsset(row) {
+  return {
+    id: row.id,
+    equipmentName: row.description || [row.make, row.model].filter(Boolean).join(" ") || row.category || "Unnamed equipment",
+    serialNumber: row.serial_number || "",
+    unitPrice: Number(row.unit_price) || 0,
+    quantity: Number(row.quantity) || 1,
+    status: String(row.issue_status || "").toLowerCase() === "issued" ? ASSET_STATUS.ISSUED : ASSET_STATUS.RETURNED,
+    returnCondition: normalizeReturnCondition(row.condition) || "",
+    assetTag: row.asset_tag || "",
+    category: row.category || "",
+    make: row.make || "",
+    model: row.model || "",
+  };
+}
+
+function getSupabaseHeaders(prefer) {
+  return {
+    apikey: SUPABASE_API_KEY,
+    Authorization: `Bearer ${SUPABASE_API_KEY}`,
+    "Content-Type": "application/json",
+    ...(prefer ? { Prefer: prefer } : {}),
+  };
 }
 
 function render() {
@@ -590,7 +779,7 @@ function addAssetRow(asset = {}) {
   assetRows.append(row);
 }
 
-function handleEmployeeSubmit(event) {
+async function handleEmployeeSubmit(event) {
   event.preventDefault();
   const formData = new FormData(employeeForm);
   const employeeId = String(formData.get("employeeId")).trim();
@@ -653,6 +842,12 @@ function handleEmployeeSubmit(event) {
     trackingStatus: existingEmployee?.trackingStatus || "",
     archivedDate: existingEmployee?.archivedDate || "",
   };
+
+  if (isSupabaseBacked) {
+    updatedEmployee.assets = await Promise.all(
+      updatedEmployee.assets.map((asset) => upsertAssetToSupabase(asset, updatedEmployee)),
+    );
+  }
 
   if (existingEmployee) {
     employees = employees.map((employee) => (employee.id === existingEmployee.id ? updatedEmployee : employee));
@@ -958,7 +1153,7 @@ function getIssuedAssetQuantity(employeeList) {
   );
 }
 
-function updateAssetStatus(employeeId, assetId, status) {
+async function updateAssetStatus(employeeId, assetId, status) {
   const employee = employees.find((item) => item.id === employeeId);
 
   if (!employee) {
@@ -977,51 +1172,68 @@ function updateAssetStatus(employeeId, assetId, status) {
     }
   }
 
-  employee.assets = employee.assets.map((asset) =>
-    asset.id === assetId
-      ? {
+  let updatedAsset = null;
+  employee.assets = employee.assets.map((asset) => {
+    if (asset.id !== assetId) {
+      return asset;
+    }
+
+    updatedAsset = {
           ...asset,
           status,
           returnCondition: status === ASSET_STATUS.RETURNED ? returnCondition : "",
-        }
-      : asset,
-  );
+    };
+    return updatedAsset;
+  });
+  if (isSupabaseBacked && updatedAsset) {
+    await upsertAssetToSupabase(updatedAsset, status === ASSET_STATUS.RETURNED ? null : employee);
+  }
   saveEmployees();
   render();
   openProfileModal(employeeId);
   showToast(`Asset marked ${status === ASSET_STATUS.RETURNED ? "returned" : "issued"}.`);
 }
 
-function updateReturnCondition(employeeId, assetId, returnCondition) {
+async function updateReturnCondition(employeeId, assetId, returnCondition) {
   const employee = employees.find((item) => item.id === employeeId);
 
   if (!employee) {
     return;
   }
 
-  employee.assets = employee.assets.map((asset) =>
-    asset.id === assetId
-      ? {
+  let updatedAsset = null;
+  employee.assets = employee.assets.map((asset) => {
+    if (asset.id !== assetId) {
+      return asset;
+    }
+
+    updatedAsset = {
           ...asset,
           returnCondition,
-        }
-      : asset,
-  );
+    };
+    return updatedAsset;
+  });
+  if (isSupabaseBacked && updatedAsset) {
+    await upsertAssetToSupabase(updatedAsset, updatedAsset.status === ASSET_STATUS.RETURNED ? null : employee);
+  }
   saveEmployees();
   showToast("Return condition saved.");
 }
 
 function openIssueAssetDialog(sourceEmployeeId, assetId) {
   const sourceEmployee = employees.find((employee) => employee.id === sourceEmployeeId);
-  const asset = sourceEmployee?.assets.find((item) => item.id === assetId);
+  const asset =
+    sourceEmployee?.assets.find((item) => item.id === assetId) ||
+    standaloneAssets.find((item) => item.id === assetId);
 
-  if (!sourceEmployee || !asset || !issueAssetDialog || !issueAssetForm) {
+  if (!asset || !issueAssetDialog || !issueAssetForm) {
     return;
   }
 
   issueAssetForm.reset();
-  issueAssetForm.elements.sourceEmployeeId.value = sourceEmployeeId;
+  issueAssetForm.elements.sourceEmployeeId.value = sourceEmployee?.id || "";
   issueAssetForm.elements.assetId.value = assetId;
+  issueAssetForm.elements.sourceType.value = sourceEmployee ? "employee" : "standalone";
   issueAssetTitle.textContent = `Issue ${asset.equipmentName}`;
   issueExistingEmployee.innerHTML = employees
     .filter((employee) => employee.id !== sourceEmployeeId && employee.status !== "archived")
@@ -1040,20 +1252,24 @@ function toggleIssueFields(mode) {
   });
 }
 
-function handleIssueAssetSubmit(event) {
+async function handleIssueAssetSubmit(event) {
   event.preventDefault();
   const formData = new FormData(issueAssetForm);
   const sourceEmployeeId = String(formData.get("sourceEmployeeId"));
   const assetId = String(formData.get("assetId"));
+  const sourceType = String(formData.get("sourceType"));
   const issueMode = String(formData.get("issueMode"));
-  const movedAsset = detachAssetFromEmployee(sourceEmployeeId, assetId);
+  const movedAsset =
+    sourceType === "standalone"
+      ? detachStandaloneAsset(assetId)
+      : detachAssetFromEmployee(sourceEmployeeId, assetId);
 
   if (!movedAsset) {
     showToast("That asset is no longer available.");
     return;
   }
 
-  const issuedAsset = {
+  let issuedAsset = {
     ...movedAsset,
     status: ASSET_STATUS.ISSUED,
     returnCondition: "",
@@ -1061,6 +1277,18 @@ function handleIssueAssetSubmit(event) {
 
   if (issueMode === "existing") {
     const targetEmployeeId = String(formData.get("targetEmployeeId"));
+    const targetEmployee = employees.find((employee) => employee.id === targetEmployeeId);
+
+    if (!targetEmployee) {
+      showToast("Select an employee to issue this asset to.");
+      restoreMovedAsset(sourceEmployeeId, movedAsset);
+      return;
+    }
+
+    if (isSupabaseBacked) {
+      issuedAsset = await upsertAssetToSupabase(issuedAsset, targetEmployee);
+    }
+
     employees = employees.map((employee) =>
       employee.id === targetEmployeeId ? { ...employee, assets: [...employee.assets, issuedAsset] } : employee,
     );
@@ -1071,31 +1299,30 @@ function handleIssueAssetSubmit(event) {
 
     if (!newEmployeeId || !fullName || !workLocation) {
       showToast("Employee ID, full name, and work location are required.");
-      employees = employees.map((employee) =>
-        employee.id === sourceEmployeeId
-          ? { ...employee, assets: [...employee.assets, movedAsset] }
-          : employee,
-      );
+      restoreMovedAsset(sourceEmployeeId, movedAsset);
       return;
     }
 
-    employees = [
-      {
-        id: createId(),
-        employeeId: newEmployeeId,
-        fullName,
-        workLocation,
-        address: { address1: "", address2: "", city: "", state: "", zip: "" },
-        assets: [issuedAsset],
-        status: "active",
-        terminationDate: "",
-        returnDueDate: "",
-        trackingNumber: "",
-        trackingStatus: "",
-        archivedDate: "",
-      },
-      ...employees,
-    ];
+    const newEmployee = {
+      id: createId(),
+      employeeId: newEmployeeId,
+      fullName,
+      workLocation,
+      address: { address1: "", address2: "", city: "", state: "", zip: "" },
+      assets: [],
+      status: "active",
+      terminationDate: "",
+      returnDueDate: "",
+      trackingNumber: "",
+      trackingStatus: "",
+      archivedDate: "",
+    };
+
+    if (isSupabaseBacked) {
+      issuedAsset = await upsertAssetToSupabase(issuedAsset, newEmployee);
+    }
+
+    employees = [{ ...newEmployee, assets: [issuedAsset] }, ...employees];
   }
 
   saveEmployees();
@@ -1128,6 +1355,13 @@ function detachAssetFromEmployee(employeeId, assetId) {
 
 function detachAssetById(assetId) {
   let movedAsset = null;
+  standaloneAssets = standaloneAssets.filter((asset) => {
+    if (asset.id === assetId) {
+      movedAsset = asset;
+      return false;
+    }
+    return true;
+  });
   employees = employees.map((employee) => ({
     ...employee,
     assets: employee.assets.filter((asset) => {
@@ -1139,6 +1373,29 @@ function detachAssetById(assetId) {
     }),
   }));
   return movedAsset;
+}
+
+function detachStandaloneAsset(assetId) {
+  let movedAsset = null;
+  standaloneAssets = standaloneAssets.filter((asset) => {
+    if (asset.id === assetId) {
+      movedAsset = asset;
+      return false;
+    }
+    return true;
+  });
+  return movedAsset;
+}
+
+function restoreMovedAsset(sourceEmployeeId, movedAsset) {
+  if (sourceEmployeeId) {
+    employees = employees.map((employee) =>
+      employee.id === sourceEmployeeId ? { ...employee, assets: [...employee.assets, movedAsset] } : employee,
+    );
+    return;
+  }
+
+  standaloneAssets = [...standaloneAssets, movedAsset];
 }
 
 function findAvailableAssetBySerial(serialNumber) {
@@ -1153,6 +1410,12 @@ function findAvailableAssetBySerial(serialNumber) {
       if (asset.status === ASSET_STATUS.RETURNED && normalizeSerial(asset.serialNumber) === normalizedSerial) {
         return { employeeId: employee.id, asset };
       }
+    }
+  }
+
+  for (const asset of standaloneAssets) {
+    if (normalizeSerial(asset.serialNumber) === normalizedSerial) {
+      return { employeeId: "", asset };
     }
   }
 
@@ -1183,6 +1446,34 @@ function fillCompanyAddress() {
 
 function getAssetInventory() {
   const inventory = new Map();
+
+  standaloneAssets.forEach((asset) => {
+    const equipmentName = asset.equipmentName || "Unnamed equipment";
+    const quantity = Number(asset.quantity) || 0;
+    const existing = inventory.get(equipmentName) || {
+      equipmentName,
+      quantityIssued: 0,
+      quantityAvailable: 0,
+      totalValue: 0,
+      units: [],
+    };
+
+    existing.quantityAvailable += quantity;
+    existing.totalValue += (Number(asset.unitPrice) || 0) * quantity;
+
+    for (let index = 0; index < Math.max(quantity, 1); index += 1) {
+      existing.units.push({
+        ...asset,
+        quantity: 1,
+        sourceType: "standalone",
+        employeeId: "",
+        employeeName: "",
+        employeeNumber: "",
+        employeeStatus: "unassigned",
+      });
+    }
+    inventory.set(equipmentName, existing);
+  });
 
   employees.forEach((employee) => {
     employee.assets.forEach((asset) => {
