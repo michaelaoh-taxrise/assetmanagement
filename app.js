@@ -1430,6 +1430,11 @@ function normalizeIdentifier(value) {
   return String(value || "").trim().replace(/\s+/g, "").toLowerCase();
 }
 
+function normalizeReturnCondition(condition) {
+  const normalizedCondition = String(condition || "").trim().toLowerCase();
+  return RETURN_CONDITIONS.find((item) => item.toLowerCase() === normalizedCondition) || "";
+}
+
 function handleWorkLocationChange() {
   if (employeeForm.elements.workLocation.value === "CA") {
     fillCompanyAddress();
