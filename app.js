@@ -365,6 +365,7 @@ async function upsertAssetToSupabase(asset, employee = null) {
 
 function createSupabaseAssetPayload(asset, employee = null) {
   const isIssued = Boolean(employee) && asset.status !== ASSET_STATUS.RETURNED;
+  const disposition = isIssued ? employee.status || "active" : "available";
 
   return {
     serial_number: asset.serialNumber || null,
@@ -377,8 +378,14 @@ function createSupabaseAssetPayload(asset, employee = null) {
     assigned_by: isIssued ? employee.fullName : null,
     location: isIssued ? employee.workLocation : null,
     issue_date: isIssued ? new Date().toISOString().slice(0, 10) : null,
-    return_date: isIssued ? null : asset.status === ASSET_STATUS.RETURNED ? new Date().toISOString().slice(0, 10) : null,
-    disposition: isIssued ? "active" : "available",
+    return_date: isIssued
+      ? employee.status === "pending-return"
+        ? employee.returnDueDate || null
+        : null
+      : asset.status === ASSET_STATUS.RETURNED
+        ? new Date().toISOString().slice(0, 10)
+        : null,
+    disposition,
   };
 }
 
@@ -466,6 +473,12 @@ function mapSupabaseAssets(rows) {
 }
 
 function createEmployeeFromSupabaseRow(row, employeeId) {
+  const disposition = String(row.disposition || "").toLowerCase();
+  const status =
+    disposition === "archived" || disposition === "pending-return"
+      ? disposition
+      : "active";
+
   return {
     id: `employee-${employeeId}`,
     employeeId,
@@ -473,12 +486,12 @@ function createEmployeeFromSupabaseRow(row, employeeId) {
     workLocation: row.location || "",
     address: { address1: "", address2: "", city: "", state: "", zip: "" },
     assets: [],
-    status: row.disposition === "archived" ? "archived" : "active",
+    status,
     terminationDate: "",
     returnDueDate: row.return_date || "",
     trackingNumber: "",
     trackingStatus: "",
-    archivedDate: row.disposition === "archived" ? row.updated_at || row.return_date || "" : "",
+    archivedDate: status === "archived" ? row.updated_at || row.return_date || "" : "",
   };
 }
 
@@ -1077,7 +1090,7 @@ function openReturnModal(employeeId) {
   terminationDateInput.focus();
 }
 
-function handleReturnSubmit(event) {
+async function handleReturnSubmit(event) {
   event.preventDefault();
 
   const employee = employees.find((item) => item.id === selectedEmployeeId);
@@ -1092,6 +1105,12 @@ function handleReturnSubmit(event) {
   employee.trackingNumber = employee.trackingNumber || "";
   employee.trackingStatus = employee.trackingStatus || "Pending pickup";
   employee.archivedDate = "";
+
+  if (isSupabaseBacked) {
+    employee.assets = await Promise.all(
+      employee.assets.map((asset) => upsertAssetToSupabase(asset, employee)),
+    );
+  }
 
   saveEmployees();
   render();
