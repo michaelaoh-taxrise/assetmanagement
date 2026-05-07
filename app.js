@@ -1,4 +1,5 @@
 const STORAGE_KEY = "taxriseAssetManagementEmployees";
+const TRACKING_STORAGE_KEY = "taxriseAssetManagementTracking";
 const SUPABASE_REST_URL = "https://tmthetxswkapprsolkyr.supabase.co/rest/v1";
 const SUPABASE_API_KEY = "sb_publishable_0u99_tf_gvJfHVfb5A2Lkg_w9anjq0c";
 const SUPABASE_ASSETS_TABLE = "assets";
@@ -87,6 +88,7 @@ const seedEmployees = [
 let employees = [];
 let standaloneAssets = [];
 let isSupabaseBacked = false;
+let trackingMetadata = loadTrackingMetadata();
 let selectedEmployeeId = null;
 let editingEmployeeId = null;
 let assetToIssue = null;
@@ -241,6 +243,7 @@ document.addEventListener("input", (event) => {
   }
 
   employee.trackingNumber = input.value.trim();
+  saveTrackingMetadata(employee);
   saveEmployees();
 });
 
@@ -255,6 +258,7 @@ document.addEventListener("change", (event) => {
     }
 
     employee.trackingStatus = input.value;
+    saveTrackingMetadata(employee);
     saveEmployees();
     render();
   }
@@ -292,6 +296,26 @@ function loadEmployees() {
   } catch {
     return [];
   }
+}
+
+function loadTrackingMetadata() {
+  try {
+    return JSON.parse(localStorage.getItem(TRACKING_STORAGE_KEY)) || {};
+  } catch {
+    return {};
+  }
+}
+
+function saveTrackingMetadata(employee) {
+  if (!employee?.employeeId) {
+    return;
+  }
+
+  trackingMetadata[employee.employeeId] = {
+    trackingNumber: employee.trackingNumber || "",
+    trackingStatus: employee.trackingStatus || "",
+  };
+  localStorage.setItem(TRACKING_STORAGE_KEY, JSON.stringify(trackingMetadata));
 }
 
 function normalizeEmployee(employee) {
@@ -478,6 +502,7 @@ function createEmployeeFromSupabaseRow(row, employeeId) {
     disposition === "archived" || disposition === "pending-return"
       ? disposition
       : "active";
+  const metadata = trackingMetadata[employeeId] || {};
 
   return {
     id: `employee-${employeeId}`,
@@ -489,8 +514,8 @@ function createEmployeeFromSupabaseRow(row, employeeId) {
     status,
     terminationDate: "",
     returnDueDate: row.return_date || "",
-    trackingNumber: "",
-    trackingStatus: "",
+    trackingNumber: metadata.trackingNumber || "",
+    trackingStatus: metadata.trackingStatus || "",
     archivedDate: status === "archived" ? row.updated_at || row.return_date || "" : "",
   };
 }
@@ -1105,6 +1130,7 @@ async function handleReturnSubmit(event) {
   employee.trackingNumber = employee.trackingNumber || "";
   employee.trackingStatus = employee.trackingStatus || "Pending pickup";
   employee.archivedDate = "";
+  saveTrackingMetadata(employee);
 
   if (isSupabaseBacked) {
     employee.assets = await Promise.all(
