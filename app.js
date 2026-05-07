@@ -245,6 +245,7 @@ document.addEventListener("input", (event) => {
   employee.trackingNumber = input.value.trim();
   saveTrackingMetadata(employee);
   saveEmployees();
+  syncEmployeeTrackingToSupabase(employee);
 });
 
 document.addEventListener("change", (event) => {
@@ -260,6 +261,7 @@ document.addEventListener("change", (event) => {
     employee.trackingStatus = input.value;
     saveTrackingMetadata(employee);
     saveEmployees();
+    syncEmployeeTrackingToSupabase(employee);
     render();
   }
 
@@ -401,6 +403,8 @@ function createSupabaseAssetPayload(asset, employee = null) {
     employee_id: isIssued ? employee.employeeId : null,
     assigned_by: isIssued ? employee.fullName : null,
     location: isIssued ? employee.workLocation : null,
+    tracking_number: isIssued ? employee.trackingNumber || null : null,
+    tracking_status: isIssued ? employee.trackingStatus || null : null,
     issue_date: isIssued ? new Date().toISOString().slice(0, 10) : null,
     return_date: isIssued
       ? employee.status === "pending-return"
@@ -425,6 +429,25 @@ async function deleteAssetFromSupabase(assetId) {
 
   if (!response.ok) {
     throw new Error(await response.text());
+  }
+}
+
+async function syncEmployeeTrackingToSupabase(employee) {
+  if (!isSupabaseBacked || !employee?.employeeId) {
+    return;
+  }
+
+  const response = await fetch(`${SUPABASE_ASSETS_URL}?employee_id=eq.${encodeURIComponent(employee.employeeId)}`, {
+    method: "PATCH",
+    headers: getSupabaseHeaders("return=minimal"),
+    body: JSON.stringify({
+      tracking_number: employee.trackingNumber || null,
+      tracking_status: employee.trackingStatus || null,
+    }),
+  });
+
+  if (!response.ok) {
+    console.error("Unable to save UPS tracking to Supabase.", await response.text());
   }
 }
 
@@ -502,7 +525,6 @@ function createEmployeeFromSupabaseRow(row, employeeId) {
     disposition === "archived" || disposition === "pending-return"
       ? disposition
       : "active";
-  const metadata = trackingMetadata[employeeId] || {};
 
   return {
     id: `employee-${employeeId}`,
@@ -514,8 +536,8 @@ function createEmployeeFromSupabaseRow(row, employeeId) {
     status,
     terminationDate: "",
     returnDueDate: row.return_date || "",
-    trackingNumber: metadata.trackingNumber || "",
-    trackingStatus: metadata.trackingStatus || "",
+    trackingNumber: row.tracking_number || "",
+    trackingStatus: row.tracking_status || "",
     archivedDate: status === "archived" ? row.updated_at || row.return_date || "" : "",
   };
 }
