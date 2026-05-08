@@ -3,6 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Optional: set these to enable read-only roster lookup from Supabase (never writes to roster). -->
+    <meta name="supabase-url" content="" />
+    <meta name="supabase-anon-key" content="" />
     <title>TaxRise Asset Management</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -139,14 +142,40 @@
           </button>
         </div>
 
+        <fieldset class="roster-lookup-fieldset">
+          <legend>Roster lookup</legend>
+          <p class="helper-text">
+            Look up by <strong>employee ID</strong> or <strong>name</strong>. Results are read-only from the roster
+            table.
+          </p>
+          <div class="form-grid">
+            <label class="span-2">
+              Search roster (ID or name)
+              <input
+                type="search"
+                id="rosterSearchInput"
+                name="rosterSearch"
+                autocomplete="off"
+                placeholder="e.g. TR-1024 or Jane Doe"
+              />
+            </label>
+          </div>
+          <div id="rosterSearchStatus" class="roster-search-status" aria-live="polite"></div>
+          <ul id="rosterSearchResults" class="roster-search-results" hidden></ul>
+        </fieldset>
+
         <div class="form-grid">
           <label>
             Employee ID
             <input name="employeeId" required placeholder="e.g. TR-1024" />
           </label>
           <label>
-            Full Name
-            <input name="fullName" required placeholder="First Last" />
+            First name
+            <input name="firstName" required placeholder="John" autocomplete="given-name" />
+          </label>
+          <label>
+            Last name
+            <input name="lastName" required placeholder="Doe" autocomplete="family-name" />
           </label>
           <label>
             Work Location
@@ -242,6 +271,6 @@
     </dialog>
 
     <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
-    <script src="app.js"></script>
+    <script type="module" src="app.js"></script>
   </body>
 </html>
