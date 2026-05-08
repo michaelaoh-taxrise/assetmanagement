@@ -150,6 +150,141 @@ const toast = document.querySelector("#toast");
 const isArchivePage = document.body.dataset.page === "archive";
 const isAssetsPage = document.body.dataset.page === "assets";
 
+const ROSTER_TABLE = "paylocity_master_roster_no_pay";
+const ROSTER_URL = `${SUPABASE_REST_URL}/${ROSTER_TABLE}`;
+
+const rosterDropdown = document.querySelector("#rosterDropdown");
+const rosterHint = document.querySelector("#rosterHint");
+const fullNameInput = document.querySelector("#fullNameInput");
+const employeeIdInput = document.querySelector("#employeeIdInput");
+const lookupByIdButton = document.querySelector("#lookupByIdButton");
+
+let rosterDebounceTimer = null;
+
+function getRosterFields() {
+  return "employee_id,first_name,last_name,work_location,state,address1,address2,city,postal_code";
+}
+
+async function fetchRosterByName(namePart) {
+  const encoded = encodeURIComponent(`%${namePart}%`);
+  const url =
+    `${ROSTER_URL}?select=${getRosterFields()}` +
+    `&or=(first_name.ilike.${encoded},last_name.ilike.${encoded})` +
+    `&employee_status=eq.Active&order=last_name.asc&limit=8`;
+  const res = await fetch(url, { headers: getSupabaseHeaders() });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+async function fetchRosterById(employeeId) {
+  const encoded = encodeURIComponent(String(employeeId).trim());
+  const url = `${ROSTER_URL}?select=${getRosterFields()}&employee_id=eq.${encoded}&limit=1`;
+  const res = await fetch(url, { headers: getSupabaseHeaders() });
+  if (!res.ok) throw new Error(await res.text());
+  const rows = await res.json();
+  return rows[0] || null;
+}
+
+function fillFormFromRosterRow(row) {
+  if (!row) return;
+  const fullName = [row.first_name, row.last_name].filter(Boolean).join(" ");
+  if (employeeForm.elements.employeeId && !employeeForm.elements.employeeId.value) {
+    employeeForm.elements.employeeId.value = row.employee_id || "";
+  }
+  if (employeeForm.elements.fullName) employeeForm.elements.fullName.value = fullName;
+  if (employeeForm.elements.address1) employeeForm.elements.address1.value = row.address1 || "";
+  if (employeeForm.elements.address2) employeeForm.elements.address2.value = row.address2 || "";
+  if (employeeForm.elements.city) employeeForm.elements.city.value = row.city || "";
+  if (employeeForm.elements.state) employeeForm.elements.state.value = row.state || "";
+  if (employeeForm.elements.zipCode) employeeForm.elements.zipCode.value = row.postal_code || "";
+  const stateVal = (row.state || "").toUpperCase();
+  const workLocSelect = employeeForm.elements.workLocation;
+  if (workLocSelect) {
+    const match = [...workLocSelect.options].find((o) => o.value === stateVal);
+    if (match) workLocSelect.value = stateVal;
+  }
+  showRosterHint(`Auto-filled from Paylocity roster: ${fullName} (${row.employee_id})`);
+  closeRosterDropdown();
+}
+
+function showRosterHint(msg) {
+  if (!rosterHint) return;
+  rosterHint.textContent = msg;
+  rosterHint.hidden = false;
+}
+
+function clearRosterHint() {
+  if (!rosterHint) return;
+  rosterHint.hidden = true;
+  rosterHint.textContent = "";
+}
+
+function showRosterDropdown(rows) {
+  if (!rosterDropdown) return;
+  rosterDropdown.innerHTML = "";
+  if (!rows.length) {
+    rosterDropdown.hidden = true;
+    return;
+  }
+  rows.forEach((row) => {
+    const li = document.createElement("li");
+    li.className = "roster-option";
+    li.textContent = `${row.first_name} ${row.last_name} (${row.employee_id})`;
+    li.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      fillFormFromRosterRow(row);
+    });
+    rosterDropdown.append(li);
+  });
+  rosterDropdown.hidden = false;
+}
+
+function closeRosterDropdown() {
+  if (rosterDropdown) rosterDropdown.hidden = true;
+}
+
+fullNameInput?.addEventListener("input", () => {
+  const val = fullNameInput.value.trim();
+  clearRosterHint();
+  clearTimeout(rosterDebounceTimer);
+  if (val.length < 2) {
+    closeRosterDropdown();
+    return;
+  }
+  rosterDebounceTimer = setTimeout(async () => {
+    try {
+      const rows = await fetchRosterByName(val);
+      showRosterDropdown(rows);
+    } catch (err) {
+      console.warn("Roster name search failed:", err);
+      closeRosterDropdown();
+    }
+  }, 280);
+});
+
+fullNameInput?.addEventListener("blur", () => {
+  setTimeout(closeRosterDropdown, 150);
+});
+
+lookupByIdButton?.addEventListener("click", async () => {
+  const idVal = employeeIdInput?.value?.trim();
+  if (!idVal) {
+    showToast("Enter an employee ID first.");
+    return;
+  }
+  try {
+    const row = await fetchRosterById(idVal);
+    if (!row) {
+      showToast(`No active employee found with ID ${idVal}.`);
+      return;
+    }
+    fillFormFromRosterRow(row);
+  } catch (err) {
+    console.warn("Roster ID lookup failed:", err);
+    showToast("Roster lookup failed.");
+  }
+});
+
 openEmployeeFormButton?.addEventListener("click", () => openEmployeeDialog());
 openEmployeeFormSecondaryButton?.addEventListener("click", () => openEmployeeDialog());
 addAssetRowButton.addEventListener("click", () => addAssetRow());
@@ -777,6 +912,8 @@ function openEmployeeDialog(employeeId = null) {
 
   employeeForm.reset();
   assetRows.innerHTML = "";
+  closeRosterDropdown();
+  clearRosterHint();
 
   employeeDialogEyebrow.textContent = employee ? "Edit asset profile" : "New asset profile";
   employeeDialogTitle.textContent = employee ? "Edit Employee Profile" : "Add New Employee";

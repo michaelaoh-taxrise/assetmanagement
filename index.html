@@ -153,13 +153,19 @@
         </div>
 
         <div class="form-grid">
-          <label>
+          <label class="roster-field">
             Employee ID
-            <input name="employeeId" required placeholder="e.g. 19900" />
+            <div class="roster-id-wrap">
+              <input name="employeeId" required placeholder="e.g. 19900" id="employeeIdInput" autocomplete="off" />
+              <button class="secondary-button compact" type="button" id="lookupByIdButton">Look up</button>
+            </div>
           </label>
-          <label>
+          <label class="roster-field">
             Full Name
-            <input name="fullName" required placeholder="e.g. John Doe" />
+            <div class="roster-name-wrap">
+              <input name="fullName" required placeholder="e.g. John Doe" id="fullNameInput" autocomplete="off" />
+              <ul class="roster-dropdown" id="rosterDropdown" hidden></ul>
+            </div>
           </label>
           <label>
             Work Location
@@ -171,6 +177,7 @@
             </select>
           </label>
         </div>
+        <p class="roster-hint" id="rosterHint" hidden></p>
 
         <fieldset>
           <legend>Mailing Address</legend>
